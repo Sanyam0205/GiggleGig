@@ -1,0 +1,2 @@
+# Optional: LinkedIn / Indeed / Naukri / Glassdoor / Google Jobs scraping (os/sources/jobspy_scrape.py). Needs Python 3.10+.
+python-jobspy

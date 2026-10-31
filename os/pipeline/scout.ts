@@ -1,0 +1,71 @@
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { startRun } from '../agent.ts';
+import { loadSearch, loadTargets, type Ats, type SearchConfig, type TargetCompany } from '../config.ts';
+import { CONTEXT_DIR } from '../paths.ts';
+import { fetchAts } from '../sources/ats.ts';
+import { engineScan } from '../engine/scan.ts';
+import { fetchHackerNews, fetchRemoteOk, fetchRemotive } from '../sources/feeds.ts';
+import { fetchJobSpy } from '../sources/jobspy.ts';
+import { fetchGmailAlerts, fetchWebSearch } from '../sources/agents.ts';
+import { fetchAdzuna, fetchJooble, fetchJSearch } from '../sources/apis.ts';
+import type { RawJob } from '../sources/types.ts';
+import { ingest, normCompany } from './ingest.ts';
+
+const ATS: Ats[] = ['greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters'];
+
+/** Boards the agent scouts discover get polled directly from then on. */
+function addBoards(boards: { company: string; ats: string; slug: string }[] = [], log: (s: string) => void) {
+  const path = join(CONTEXT_DIR, 'target-companies.json');
+  const file = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : { companies: [] };
+  const known = new Set(file.companies.map((c: TargetCompany) => normCompany(c.name)));
+  let added = 0;
+  for (const b of boards) {
+    if (!ATS.includes(b.ats as Ats) || !b.slug || known.has(normCompany(b.company))) continue;
+    file.companies.push({ name: b.company, tier: 3, ats: b.ats, slug: b.slug, notes: 'auto-discovered by scout' });
+    known.add(normCompany(b.company));
+    added++;
+  }
+  if (added) {
+    writeFileSync(path, JSON.stringify(file, null, 2) + '\n');
+    log(`Added ${added} discovered boards to target-companies.json`);
+  }
+}
+
+export interface ScoutOverrides { cfg?: SearchConfig; targets?: TargetCompany[]; label?: string }
+
+export async function scout(only?: string[], o: ScoutOverrides = {}) {
+  const cfg = o.cfg ?? loadSearch();
+  const targets = o.targets ?? loadTargets();
+  const run = startRun(o.label ?? 'scout');
+  const KEYED = ['jsearch', 'adzuna', 'jooble'];
+  const on = (name: string) => !only?.length || only.includes(name) || (only.includes('apis') && KEYED.includes(name));
+  const src = cfg.sources;
+
+  const tasks: Promise<RawJob[]>[] = [];
+  const guard = (name: string, p: Promise<RawJob[]>) =>
+    tasks.push(p.catch((e) => { run.log(`${name} failed: ${e.message ?? e}`); return []; }));
+
+  // career-ops scan.mjs (55+ providers, liveness, dedupe) owns company boards; our own poller is the fallback.
+  if (src.ats && on('ats')) guard('ats', cfg.engine?.enabled ? engineScan(run.log) : fetchAts(targets, run.log));
+  if (src.jobspy.enabled && on('jobspy')) guard('jobspy', fetchJobSpy(cfg, run.log));
+  if (src.apis.jsearch && on('jsearch')) guard('jsearch', fetchJSearch(cfg, run.log));
+  if (src.apis.adzuna && on('adzuna')) guard('adzuna', fetchAdzuna(cfg, run.log));
+  if (src.apis.jooble && on('jooble')) guard('jooble', fetchJooble(cfg, run.log));
+  if (src.remoteok && on('remoteok')) guard('remoteok', fetchRemoteOk(run.log));
+  if (src.remotive && on('remotive')) guard('remotive', fetchRemotive(run.log));
+  if (src.hackernews && on('hackernews')) guard('hackernews', fetchHackerNews(run.log));
+  if (src.gmailAlerts.enabled && on('gmail')) {
+    guard('gmail', fetchGmailAlerts(cfg, run.log).then((r) => (addBoards(r.boards, run.log), r.jobs)));
+  }
+  if (src.webSearch.enabled && on('web')) {
+    guard('web', fetchWebSearch(cfg, targets, run.log).then((r) => (addBoards(r.boards, run.log), r.jobs)));
+  }
+
+  const all = (await Promise.all(tasks)).flat();
+  const stats = ingest(all, cfg);
+  const summary = `${stats.seen} seen · ${stats.inserted} new · ${stats.merged} already known · ${stats.filtered} filtered out`;
+  run.log(summary);
+  run.finish(summary);
+  return stats;
+}

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Desk · Today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--w:#FFFFFF;--ink:#1A1A1A;--ink2:#5C5C5C;--rule:#E2E2E2;--soft:#F5F4F7;--line:#7B2D8E;--lineSoft:#EFE4F3;--go:#00A651}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:900px;overflow:hidden;background:var(--w);color:var(--ink);font:14px/1.45 Barlow,sans-serif}
+.sc{font-family:"Barlow Semi Condensed",sans-serif}
+.num{font-variant-numeric:tabular-nums}
+.top{height:56px;display:flex;align-items:center;gap:28px;padding:0 32px;border-bottom:1px solid var(--rule)}
+.brand{display:flex;align-items:center;gap:10px;font:700 16px "Barlow Semi Condensed";letter-spacing:.01em}
+.brand i{width:22px;height:22px;border-radius:50%;border:4px solid var(--line);display:block}
+nav{display:flex;gap:4px}
+nav a{font:600 14px "Barlow Semi Condensed";color:var(--ink2);text-decoration:none;padding:8px 12px;border-radius:6px}
+nav a.on{color:var(--ink);background:var(--soft)}
+.top .sp{flex:1}
+.top .meta{color:var(--ink2);font-size:13px}
+.btn{font:600 13px Barlow;border-radius:6px;padding:8px 14px;border:1.5px solid var(--ink);background:var(--ink);color:#fff;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.line{background:var(--line);border-color:var(--line)}
+.btn.rej{background:transparent;border-color:var(--rule);color:var(--ink2)}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+/* the line */
+.map{padding:22px 32px 18px;border-bottom:1px solid var(--rule)}
+.map h1{font:700 26px "Barlow Semi Condensed";letter-spacing:-.005em;margin-bottom:16px;display:flex;align-items:baseline;gap:14px}
+.map h1 span{font:400 14px Barlow;color:var(--ink2)}
+.stations{position:relative;display:grid;grid-template-columns:repeat(7,1fr);height:96px}
+.track{position:absolute;left:calc(100%/14);right:calc(100%/14);top:20px;height:8px;border-radius:4px;background:var(--line)}
+.track.tail{left:calc(100%/14*9);background:repeating-linear-gradient(90deg,var(--line) 0 14px,transparent 14px 22px);opacity:.45}
+.st{position:relative;display:flex;flex-direction:column;align-items:center;text-decoration:none;color:var(--ink);gap:6px}
+.st .dot{width:48px;height:48px;border-radius:50%;background:#fff;border:7px solid var(--line);display:grid;place-items:center;font:700 14px "Barlow Semi Condensed";z-index:1}
+.st .nm{font:600 14px "Barlow Semi Condensed";letter-spacing:.01em}
+.st .ct{font:500 12.5px Barlow;color:var(--ink2)}
+.st.here .dot{background:var(--line);color:#fff;width:56px;height:56px;margin-top:-4px;box-shadow:0 0 0 6px var(--lineSoft)}
+.st.here .nm{color:var(--line);font-weight:700}
+.st.empty .dot{border-color:#C9B4D1;color:var(--ink2)}
+.st.empty .nm{color:var(--ink2)}
+/* work areas */
+.work{display:grid;grid-template-columns:5fr 4.4fr 3.6fr;height:calc(900px - 56px - 175px)}
+.col{padding:18px 24px 0 32px;border-right:1px solid var(--rule);overflow:hidden}
+.col:last-child{border-right:0;padding-right:32px;background:var(--soft)}
+h2{font:700 17px "Barlow Semi Condensed";display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+h2 .c{font:400 13px Barlow;color:var(--ink2)}
+.slip{border:1px solid var(--rule);border-radius:8px;padding:14px 16px;margin-bottom:12px;display:grid;gap:8px}
+.slip .k{display:flex;justify-content:space-between;font:600 12px "Barlow Semi Condensed";color:var(--ink2);letter-spacing:.03em}
+.slip .t{font:700 18px Barlow;line-height:1.2}
+.slip .co{font-size:13px;color:var(--ink2)}
+.slip .row{display:flex;gap:8px;align-items:center}
+.slip .row .sp{flex:1}
+.pill{font:600 12px "Barlow Semi Condensed";border-radius:999px;padding:2px 10px;background:var(--lineSoft);color:var(--line);letter-spacing:.02em}
+.pill.go{background:#E2F5EA;color:#0A7A41}
+.hops{display:flex;align-items:center;gap:6px;font:600 12px "Barlow Semi Condensed";color:var(--ink2)}
+.hops b{width:9px;height:9px;border-radius:50%;background:var(--line);display:inline-block}
+.hops b.o{background:#fff;border:2px solid #C9B4D1}
+.hops em{width:18px;height:2px;background:var(--line);display:inline-block}
+.hops em.o{background:#C9B4D1}
+.m{display:grid;grid-template-columns:42px 1fr auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--rule)}
+.m .fit{font:700 22px "Barlow Semi Condensed";color:var(--line)}
+.m .t{font-weight:600;font-size:14.5px;line-height:1.25}
+.m .s{font-size:12.5px;color:var(--ink2);display:flex;gap:8px;align-items:center;margin-top:2px}
+.tag{font:600 11.5px "Barlow Semi Condensed";border:1px solid var(--rule);border-radius:4px;padding:0 6px;color:var(--ink2);letter-spacing:.02em}
+.dep{display:grid;grid-template-columns:52px 1fr auto;gap:10px;padding:10px 0;border-bottom:1px solid #E6E4EA;align-items:baseline}
+.dep .tm{font:600 14px "Barlow Semi Condensed";font-variant-numeric:tabular-nums}
+.dep .a{font-weight:600}
+.dep .d{font-size:12.5px;color:var(--ink2);grid-column:2/4}
+.dep .st2{font:600 12.5px "Barlow Semi Condensed";color:var(--ink2)}
+.dep .st2.run{color:#0A7A41;display:flex;align-items:center;gap:6px}
+.dep .st2.run i{width:8px;height:8px;border-radius:50%;background:var(--go);display:block;box-shadow:0 0 0 3px #C9EEDA}
+.bar{grid-column:2/4;height:3px;background:#E3DCE7;border-radius:2px;overflow:hidden}
+.bar div{width:58%;height:3px;background:var(--go)}
+</style></head><body>
+<header class="top">
+ <div class="brand"><i></i>Job Search OS</div>
+ <nav>
+  <a class="on" href="#">Today</a><a href="#">Matches</a><a href="#">Companies</a><a href="#">Pipeline</a><a href="#">Sources</a><a href="#">Agents</a><a href="#">Contacts</a><a href="#">Interviews</a>
+ </nav>
+ <span class="sp"></span><span class="meta">Thu 29 Oct · fast lane ran 14 min ago</span><span class="btn ghost sm">Run briefing</span>
+</header>
+<section class="map">
+ <h1>Line to offer <span>2 jobs waiting at your station · 31 need a referral before boarding</span></h1>
+ <div class="stations">
+  <div class="track"></div><div class="track tail"></div>
+  <a class="st" href="#"><span class="dot num">198</span><span class="nm">Sourced</span><span class="ct">to score</span></a>
+  <a class="st" href="#"><span class="dot num">12</span><span class="nm">Shortlisted</span><span class="ct">ready to tailor</span></a>
+  <a class="st" href="#"><span class="dot num">31</span><span class="nm">Needs referral</span><span class="ct">ask first</span></a>
+  <a class="st here" href="#"><span class="dot num">2</span><span class="nm">Awaiting you</span><span class="ct">review and approve</span></a>
+  <a class="st" href="#"><span class="dot num">1</span><span class="nm">Applied</span><span class="ct">Vanguard</span></a>
+  <a class="st empty" href="#"><span class="dot num">0</span><span class="nm">Interviewing</span><span class="ct">none yet</span></a>
+  <a class="st empty" href="#"><span class="dot num">0</span><span class="nm">Offer</span><span class="ct">end of line</span></a>
+ </div>
+</section>
+<div class="work">
+ <section class="col">
+  <h2>At your station<span class="c">2 waiting · about 8 minutes</span></h2>
+  <div class="slip">
+   <div class="k"><span>APPLICATION · JS-AP-VANG-0001</span><span class="pill">Approved 11:58</span></div>
+   <div class="t">Software Engineer — Vanguard India (GCC)</div>
+   <div class="co">Hyderabad · fit 66 · coverage 42 · gap: Java, Angular</div>
+   <div class="hops"><b></b>Booked<em></em><b></b>Approved<em class="o"></em><b class="o"></b>Applied<em class="o"></em><b class="o"></b>Callback</div>
+   <div class="row"><span class="btn">Open apply page</span><span class="btn ghost sm">resume.pdf</span><span class="sp"></span><span class="btn ghost sm">Mark applied</span></div>
+  </div>
+  <div class="slip">
+   <div class="k"><span>REFERRAL ASK · JS-RF-3CA4-0002</span><span class="pill go">Pending</span></div>
+   <div class="t">Ask a connection at Eternal</div>
+   <div class="co">Web Developer (full stack) · 287 / 600 characters · follow-ups day 4 and day 9</div>
+   <div class="row"><span class="btn ghost sm">Edit</span><span class="btn line">Approve</span><span class="sp"></span><span class="btn rej sm">Reject</span></div>
+  </div>
+ </section>
+ <section class="col">
+  <h2>Fresh matches<span class="c">60+ fit · last 24 hours</span></h2>
+  <div class="m"><span class="fit num">78</span><div><div class="t">Web Developer (full stack) — Eternal</div><div class="s">₹6–10 LPA est. <span class="tag">Indeed</span> Bengaluru</div></div><span class="btn ghost sm">Tailor</span></div>
+  <div class="m"><span class="fit num">76</span><div><div class="t">Software Engineer — Rippling</div><div class="s">₹14–20 LPA est. <span class="tag">LinkedIn</span><span class="tag">Ashby</span> Bengaluru</div></div><span class="btn ghost sm">Tailor</span></div>
+  <div class="m"><span class="fit num">74</span><div><div class="t">Associate Developer — TransUnion</div><div class="s">₹8–12 LPA est. <span class="tag">Naukri</span> Bengaluru</div></div><span class="btn ghost sm">Tailor</span></div>
+  <div class="m"><span class="fit num">73</span><div><div class="t">Software Engineer, Python Developer — Société Générale</div><div class="s">₹9–14 LPA est. <span class="tag">LinkedIn</span> Bengaluru</div></div><span class="btn ghost sm">Tailor</span></div>
+ </section>
+ <section class="col">
+  <h2>Departures<span class="c">agents, live</span></h2>
+  <div class="dep"><span class="tm">12:14</span><span class="a">fastlane</span><span class="st2 run"><i></i>Running</span><span class="d">JobSpy 7/12 · python developer @ India → 22 postings</span><div class="bar"><div></div></div></div>
+  <div class="dep"><span class="tm">12:02</span><span class="a">scorer</span><span class="st2">Done 1m 40s</span><span class="d">40 jobs scored · 9 above 60</span></div>
+  <div class="dep"><span class="tm">11:58</span><span class="a">inbox</span><span class="st2">Done 40s</span><span class="d">2 hiring emails · Vanguard confirmation matched</span></div>
+  <div class="dep"><span class="tm">11:53</span><span class="a">resume-tailor · Vanguard</span><span class="st2">Done 5m 12s</span><span class="d">coverage 42 · reviewers 3/3 fix applied</span></div>
+  <div class="dep"><span class="tm">11:49</span><span class="a">scout</span><span class="st2">Done 3m 30s</span><span class="d">5,783 seen · 159 new · 97 filtered</span></div>
+ </section>
+</div>
+</body></html>

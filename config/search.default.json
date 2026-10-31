@@ -1,0 +1,151 @@
+{
+  "_comment": "Neutral defaults for a fresh install. The first resume upload fills the search fields below (queries, titles, locations); the desk's Sources page edits the rest. The working copy is config/search.json, created from this file on first run and not committed.",
+  "queries": [],
+  "titleInclude": [],
+  "titleExclude": [],
+  "locations": [],
+  "remote": {
+    "accept": true
+  },
+  "maxAgeDays": 14,
+  "thresholds": {
+    "_comment": "0–100 equivalents of career-ops 1–5 scores (score × 20): skip below 3.5, apply at 4.0+.",
+    "skip": 70,
+    "apply": 80
+  },
+  "automation": {
+    "tailor": "manual",
+    "autoTailorMin": 85
+  },
+  "alerts": {
+    "_comment": "Phone alerts via ntfy (install the ntfy app, subscribe to the topic shown on the desk).",
+    "enabled": false,
+    "minFit": 80,
+    "server": "https://ntfy.sh"
+  },
+  "fastlane": {
+    "_comment": "Frequent light scout for fresh postings; new roles are scored immediately and alerted.",
+    "enabled": true,
+    "everyMinutes": 90,
+    "tier": 1,
+    "hoursOld": 3,
+    "queries": 4,
+    "jsearchCalls": 2
+  },
+  "inbox": {
+    "_comment": "Watches Gmail for OA invites, interview scheduling, recruiter replies, rejections and offers.",
+    "enabled": false,
+    "lookbackHours": 6
+  },
+  "sources": {
+    "ats": true,
+    "jobspy": {
+      "enabled": true,
+      "sites": [
+        "linkedin",
+        "indeed",
+        "naukri",
+        "google",
+        "glassdoor"
+      ],
+      "locations": [],
+      "country": "",
+      "resultsPerQuery": 30,
+      "hoursOld": 72
+    },
+    "remoteok": true,
+    "remotive": true,
+    "hackernews": true,
+    "gmailAlerts": {
+      "enabled": false,
+      "lookbackDays": 2
+    },
+    "webSearch": {
+      "enabled": true,
+      "maxQueries": 6
+    },
+    "apis": {
+      "_comment": "Keyed APIs; each turns on when its key is in .env. PerRun caps protect free tiers (JSearch free = 200 requests/month).",
+      "jsearch": true,
+      "adzuna": true,
+      "jooble": true,
+      "places": [],
+      "jsearchPerRun": 4,
+      "adzunaPerRun": 10,
+      "jooblePerRun": 10
+    }
+  },
+  "limits": {
+    "scoreBatchSize": 8,
+    "maxScoredPerRun": 80,
+    "maxTailoredPerRun": 6
+  },
+  "engine": {
+    "_comment": "The engine lives in engine/career-ops with its data in engine-data/. Limits for its two-pass triage and full A–G evaluation.",
+    "enabled": true,
+    "triageBatch": 8,
+    "evaluatePerRun": 6,
+    "evaluateFastlane": 3
+  },
+  "agents": {
+    "_comment": "Provider and model per agent role. Roles that read Gmail or Calendar always run on Claude (the connectors live there). A Codex route moves to `fallback` when Codex is logged out, missing or out of plan usage.",
+    "routes": {
+      "default": {
+        "provider": "claude",
+        "model": "sonnet"
+      },
+      "triage": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "resume-tailor": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "scout:web": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "scout:company": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "scout:gmail": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "inbox:scan": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "calendar:scan": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "gmail-draft": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "interview-prep": {
+        "provider": "claude",
+        "model": "opus"
+      },
+      "scorer": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "evaluate:economy": {
+        "provider": "claude",
+        "model": "haiku"
+      },
+      "evaluate:standard": {
+        "provider": "claude",
+        "model": "sonnet"
+      },
+      "evaluate:premium": {
+        "provider": "claude",
+        "model": "opus"
+      }
+    }
+  }
+}

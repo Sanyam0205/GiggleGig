@@ -1,0 +1,24 @@
+{
+  "name": "giggle-gig",
+  "private": true,
+  "type": "module",
+  "description": "Candidate-first job search workflows with a local GiggleGig desk.",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "desk": "node os/cli.ts serve",
+    "desk:dev": "npm --prefix desk run dev",
+    "desk:build": "npm --prefix desk run build",
+    "briefing": "node os/cli.ts briefing",
+    "scout": "node os/cli.ts scout",
+    "score": "node os/cli.ts score",
+    "tailor": "node os/cli.ts tailor",
+    "schedule:install": "node os/cli.ts schedule install",
+    "schedule:uninstall": "node os/cli.ts schedule uninstall",
+    "os": "node os/cli.ts",
+    "doctor": "node os/cli.ts engine doctor",
+    "secret-scan": "node scripts/secret-scan.mjs --staged"
+  }
+}

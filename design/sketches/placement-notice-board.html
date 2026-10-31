@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Desk · Today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#FAF8F2;--paper2:#F1EEE4;--ink:#1B2A4A;--ink2:#4A5672;--ink3:#7A8399;--rule:#D9D4C6;--blue:#1F4FB2;--maroon:#8C1D2C}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1440px;height:900px;overflow:hidden;background:var(--paper);color:var(--ink);font:14px/1.45 "IBM Plex Sans",sans-serif}
+.serif{font-family:"Source Serif 4",serif}.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.shell{display:grid;grid-template-columns:200px 1fr 340px;height:900px}
+nav{border-right:1px solid var(--rule);padding:22px 0 0;display:flex;flex-direction:column}
+.brand{padding:0 22px 20px;font:700 18px/1.2 "Source Serif 4",serif;border-bottom:2px solid var(--ink);margin:0 0 10px}
+.brand small{display:block;font:400 12px "IBM Plex Sans";color:var(--ink2);margin-top:3px}
+nav a{display:flex;justify-content:space-between;padding:8px 22px;color:var(--ink2);text-decoration:none;font-weight:500;font-size:14px}
+nav a.on{color:var(--ink);font-weight:600;background:var(--paper2);box-shadow:inset 3px 0 0 var(--ink)}
+nav a .n{font:500 12px "IBM Plex Mono";color:var(--maroon)}
+main{padding:24px 28px 0;overflow:hidden}
+.head{display:flex;align-items:baseline;gap:16px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+h1{font:700 30px/1.1 "Source Serif 4",serif;letter-spacing:-.01em}
+.head .meta{color:var(--ink2);font-size:13px}.sp{flex:1}
+.btn{font:600 13px "IBM Plex Sans";border-radius:4px;padding:7px 13px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper)}
+.btn.ghost{background:transparent;color:var(--ink)}.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.rej{background:transparent;border-color:var(--rule);color:var(--ink2)}
+h2{font:600 19px/1.2 "Source Serif 4",serif;margin:18px 0 8px;display:flex;align-items:baseline;gap:12px}
+h2 .c{font:400 13px "IBM Plex Sans";color:var(--ink2)}
+.notice{border-top:1px solid var(--rule);padding:11px 0 10px;display:grid;grid-template-columns:62px 1fr 210px;gap:14px;align-items:start}
+.notice:first-of-type{border-top:1.5px solid var(--ink)}
+.score{font:700 30px/1 "Source Serif 4",serif;font-variant-numeric:tabular-nums}.score small{display:block;font:500 11px "IBM Plex Sans";color:var(--ink3);margin-top:3px;letter-spacing:.04em;text-transform:uppercase}
+.nt{font:600 18px/1.25 "Source Serif 4",serif}.co{color:var(--ink2);font-size:13px;margin-top:1px}
+.proof{font-size:12.5px;color:var(--ink2);margin-top:4px;padding-left:10px;border-left:1px solid var(--blue)}
+.proof b{color:var(--ink);font-weight:600}
+.elig{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12.5px}
+.elig span{display:inline-flex;align-items:center;gap:4px;color:var(--ink)}
+.elig .no{color:var(--maroon)}.elig svg{width:14px;height:14px}
+.side{display:flex;flex-direction:column;align-items:flex-end;gap:7px;font-size:12.5px;color:var(--ink2)}
+.pay{font-weight:600;color:var(--ink);font-size:14px}.pay em{font-style:normal;font-weight:400;color:var(--ink3);font-size:12px}
+.via{font-size:12px}
+.budget{display:flex;align-items:center;gap:12px;margin:2px 0 8px;font-size:12.5px;color:var(--ink2)}
+.track{flex:1;height:8px;background:var(--paper2);border:1px solid var(--rule);display:flex}
+.track i{display:block;height:100%;border-right:1.5px solid var(--paper)}
+.slip{display:grid;grid-template-columns:1fr 56px 220px;gap:14px;align-items:center;border:1px solid var(--rule);background:#fff;padding:10px 14px;margin-bottom:8px;position:relative}
+.slip .k{font:600 11.5px "IBM Plex Sans";text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.slip .t{font:600 16px "Source Serif 4",serif;margin-top:1px}
+.slip .min{font:500 13px "IBM Plex Mono";color:var(--ink2);text-align:right}
+.slip .act{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.slip .act .rej{margin-left:18px}
+.seal{position:absolute;right:250px;top:50%;transform:translateY(-50%) rotate(-10deg);width:60px;height:60px;border:2px solid var(--maroon);border-radius:50%;
+ color:var(--maroon);display:grid;place-items:center;text-align:center;font:600 11px/1.15 "IBM Plex Sans";letter-spacing:.04em;box-shadow:inset 0 0 0 3px #fff,inset 0 0 0 4px var(--maroon);opacity:.9}
+aside{border-left:1px solid var(--rule);padding:24px 22px 0;background:var(--paper2)}
+aside h2{margin-top:0;justify-content:space-between}
+.axis{display:flex;justify-content:space-between;font:400 11.5px "IBM Plex Mono";color:var(--ink3);border-bottom:1px solid var(--ink);padding-bottom:3px;margin:6px 0 4px}
+.run{padding:9px 0;border-bottom:1px solid var(--rule)}
+.run .top{display:flex;justify-content:space-between;font-size:13px}.run .a{font-weight:600}.run .mono{font-size:12px;color:var(--ink2)}
+.bar{height:7px;margin-top:6px;position:relative;background:transparent}
+.bar i{position:absolute;top:0;height:7px;background:var(--ink)}
+.bar i.live{background:var(--blue)}
+.ev{font:400 12px/1.4 "IBM Plex Mono";color:var(--ink2);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="ok" viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="#1F4FB2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="no" viewBox="0 0 14 14"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="#8C1D2C" stroke-width="2" stroke-linecap="round"/></symbol>
+</defs></svg>
+<div class="shell">
+<nav>
+ <div class="brand">Placement Desk<small>Sanyam Singh · SDE-1 search</small></div>
+ <a class="on" href="#">Today <span class="n">3</span></a><a href="#">Matches <span class="n">43</span></a><a href="#">Companies</a><a href="#">Pipeline</a>
+ <a href="#">Sources</a><a href="#">Agents</a><a href="#">Contacts</a><a href="#">Interviews</a>
+</nav>
+<main>
+ <div class="head"><h1>Drives this week</h1><span class="meta">Thursday 29 Oct · 43 roles meet the cut-off · 6 new since morning</span><span class="sp"></span><span class="btn ghost">Run briefing</span></div>
+ <div class="notice">
+  <div class="score">78<small>fit</small></div>
+  <div><div class="nt">Web Developer (full stack)</div><div class="co">Eternal · Bengaluru</div>
+   <div class="elig"><span><svg><use href="#ok"/></svg>CGPA 8.04 ≥ 7</span><span><svg><use href="#ok"/></svg>B.Tech IT</span><span><svg><use href="#ok"/></svg>0–2 yrs</span><span><svg><use href="#ok"/></svg>React, Node</span><span><svg><use href="#ok"/></svg>REST APIs</span></div>
+   <div class="proof">Asks for MERN + REST; <b>you built the ReKart purchase-order app in MERN</b> with RBAC and PDF export.</div></div>
+  <div class="side"><span class="pay">₹6–10 LPA <em>estimate</em></span><span class="via">via Indeed</span><span class="btn blue">Tailor resume</span></div>
+ </div>
+ <div class="notice">
+  <div class="score">76<small>fit</small></div>
+  <div><div class="nt">Software Engineer</div><div class="co">Rippling · Bengaluru</div>
+   <div class="elig"><span><svg><use href="#ok"/></svg>CGPA 8.04 ≥ 7</span><span><svg><use href="#ok"/></svg>B.Tech IT</span><span><svg><use href="#ok"/></svg>0–2 yrs</span><span><svg><use href="#ok"/></svg>Python</span><span class="no"><svg><use href="#no"/></svg>Go</span></div>
+   <div class="proof">Backend + data pipelines; <b>you join telemetry and logs on a resolved device identity</b> at TPProtect.</div></div>
+  <div class="side"><span class="pay">₹14–20 LPA <em>estimate</em></span><span class="via">via LinkedIn · Greenhouse</span><span class="btn blue">Tailor resume</span></div>
+ </div>
+ <div class="notice">
+  <div class="score">74<small>fit</small></div>
+  <div><div class="nt">Associate Developer</div><div class="co">TransUnion · Bengaluru</div>
+   <div class="elig"><span><svg><use href="#ok"/></svg>CGPA 8.04 ≥ 7</span><span><svg><use href="#ok"/></svg>B.Tech IT</span><span><svg><use href="#ok"/></svg>0–2 yrs</span><span><svg><use href="#ok"/></svg>Python, SQL</span><span class="no"><svg><use href="#no"/></svg>Java</span></div>
+   <div class="proof">Python + SQL data work; <b>you built FastAPI data-collection workflows</b> over Google Scholar and DBLP.</div></div>
+  <div class="side"><span class="pay">₹7–11 LPA <em>estimate</em></span><span class="via">via Naukri · LinkedIn</span><span class="btn ghost">Tailor resume</span></div>
+ </div>
+ <h2>Shortlist — awaiting your sign-off<span class="c">2 slips · 18 of 25 minutes</span></h2>
+ <div class="budget"><span>Today: 25 min</span><div class="track"><i style="width:40%;background:var(--ink)"></i><i style="width:32%;background:var(--blue)"></i></div><span class="mono">7 min free</span></div>
+ <div class="slip">
+  <div><div class="k">Application · VG-0001</div><div class="t">Software Engineer — Vanguard India (GCC), Hyderabad</div></div>
+  <div class="min">10 min</div>
+  <div class="act"><span class="btn">Open apply page</span></div>
+  <div class="seal">SIGNED<br>29 OCT</div>
+ </div>
+ <div class="slip">
+  <div><div class="k">Referral ask · RF-0003</div><div class="t">To an engineer at Rippling, for Software Engineer</div></div>
+  <div class="min">8 min</div>
+  <div class="act"><span class="btn ghost">Edit</span><span class="btn blue">Approve</span><span class="btn rej">Reject</span></div>
+ </div>
+</main>
+<aside>
+ <h2>Agent register<span class="c mono">14:20</span></h2>
+ <div class="axis"><span>0</span><span>1m</span><span>2m</span><span>3m</span><span>4m</span><span>5m</span></div>
+ <div class="run"><div class="top"><span class="a">resume-tailor · Eternal</span><span class="mono">running 5m 00s</span></div>
+  <div class="bar"><i class="live" style="left:0;width:100%"></i></div><div class="ev">Agent hiring-manager-reviewer · pass 8/10</div></div>
+ <div class="run"><div class="top"><span class="a">fastlane</span><span class="mono">14:02 · 2m 10s</span></div>
+  <div class="bar"><i style="left:0;width:43.3%"></i></div><div class="ev">JobSpy 4/4 · 6 new · 2 alerted</div></div>
+ <div class="run"><div class="top"><span class="a">scorer</span><span class="mono">14:04 · 1m 40s</span></div>
+  <div class="bar"><i style="left:0;width:33.3%"></i></div><div class="ev">8 jobs scored · 2 apply · 4 referral first</div></div>
+ <div class="run"><div class="top"><span class="a">inbox</span><span class="mono">14:00 · 40s</span></div>
+  <div class="bar"><i style="left:0;width:13.3%"></i></div><div class="ev">1 hiring email · Groww OA invite, due Fri 31 Oct</div></div>
+ <div class="run"><div class="top"><span class="a">scout:gmail</span><span class="mono">13:30 · 32s</span></div>
+  <div class="bar"><i style="left:0;width:10.7%"></i></div><div class="ev">Gmail.search_threads · 13 postings</div></div>
+</aside>
+</div>
+</body></html>
