@@ -10,7 +10,8 @@ export async function engineScan(log: Log, extra: string[] = []): Promise<RawJob
   // Boards found since the last run (scouts, company search) only reach the scanner through portals.yml.
   const portals = syncPortals();
   if (!portals.companies) log('No company boards configured for this candidate yet');
-  const r = await engineScript('scan.mjs', ['--quiet', ...extra], { timeoutMs: 15 * 60_000 });
+  // Big career sites (Workday tenants with thousands of jobs) take a while; a cut-off run would lose every board's results.
+  const r = await engineScript('scan.mjs', ['--quiet', ...extra], { timeoutMs: 45 * 60_000 });
   const added = /(\d+)\s+new/i.exec(r.stdout)?.[1];
   log(r.code === 0 ? `Company boards → scanned ${portals.companies}${added ? `, ${added} new offers` : ''}` : `Company board scan exited ${r.code}: ${r.stderr.trim().split('\n').slice(-2).join(' ')}`);
   return readPending();

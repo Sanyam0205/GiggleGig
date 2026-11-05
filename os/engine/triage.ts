@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { db, setJobStatus, withLock } from '../db.ts';
 import { pool, startRun } from '../agent.ts';
-import { loadSearch } from '../config.ts';
+import { loadSearch, preferenceRules } from '../config.ts';
 import { ENGINE_DATA, ENGINE_DIR, ENGINE_FILES, yaml } from './paths.ts';
 import { engineAgent, engineScript } from './run.ts';
 import { to100 } from './reports.ts';
@@ -61,7 +61,7 @@ async function triageNow(limit: number) {
 
       tools: ['WebFetch'],
       maxTurns: 4 + batch.length,
-      prompt: `${spec}\n\n---\n\n# The candidate brief (modes/_brief.md)\n\n${brief}\n\n---\n\ntriage_threshold = ${threshold}. language.output = en.\nTriage EACH posting below independently with the mode above. For each one output exactly one line, prefixed with its id:\n{id} TRIAGE: {PASS|MARGINAL|FAIL|SKIP} | {Company} | {Role} | {Score}/5 | {reason ≤ 25 words}\nNo other text.\n\n${listing}`,
+      prompt: `${spec}\n\n---\n\n# The candidate brief (modes/_brief.md)\n\n${brief}\n\n${preferenceRules(cfg)}\n---\n\ntriage_threshold = ${threshold}. language.output = en.\nTriage EACH posting below independently with the mode above. For each one output exactly one line, prefixed with its id:\n{id} TRIAGE: {PASS|MARGINAL|FAIL|SKIP} | {Company} | {Role} | {Score}/5 | {reason ≤ 25 words}\nNo other text.\n\n${listing}`,
     });
     if (!r.ok) { failures.push(r.error ?? 'agent error'); run.log(`Batch failed: ${r.error}`); }
     for (const m of r.text.matchAll(/^\s*([0-9a-f]{12})\s+TRIAGE:\s*(PASS|MARGINAL|FAIL|SKIP)\s*\|([^|]*)\|([^|]*)\|\s*([\d.]+)\s*\/\s*5\s*\|\s*(.*)$/gm)) {

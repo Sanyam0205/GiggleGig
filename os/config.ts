@@ -29,7 +29,8 @@ export interface SearchConfig {
   titleInclude: string[];
   titleExclude: string[];
   locations: string[];
-  remote: { accept: boolean };
+  /** only: drop every role that is not remote and open to `locations`. */
+  remote: { accept: boolean; only?: boolean };
   maxAgeDays: number;
   thresholds: { skip: number; apply: number };
   /** auto: the briefing tailors every shortlisted role ≥ autoTailorMin. manual: you press Tailor on the desk. */
@@ -37,7 +38,10 @@ export interface SearchConfig {
   alerts: { enabled: boolean; minFit: number; server: string };
   fastlane: { enabled: boolean; everyMinutes: number; tier: number; hoursOld: number; queries: number; jsearchCalls: number };
   inbox: { enabled: boolean; lookbackHours: number };
-  engine: { enabled: boolean; triageBatch: number; evaluatePerRun: number; evaluateFastlane: number };
+  /** autoEvaluate: false keeps the costly full evaluation for the roles you pick. */
+  engine: { enabled: boolean; triageBatch: number; evaluatePerRun: number; evaluateFastlane: number; autoEvaluate?: boolean };
+  /** The candidate's own rules. Kept in settings, so a resume upload never loses them; triage and evaluation read them every run. */
+  preferences?: { minAnnualSalary?: number; currency?: string; usdToInr?: number; experience?: string; exclude?: string[]; notes?: string[] };
   sources: {
     ats: boolean;
     jobspy: { enabled: boolean; sites: string[]; locations: string[]; country: string; resultsPerQuery: number; hoursOld: number };
@@ -46,11 +50,15 @@ export interface SearchConfig {
     hackernews: boolean;
     gmailAlerts: { enabled: boolean; lookbackDays: number };
     webSearch: { enabled: boolean; maxQueries: number };
+    /** Agent that crawls with the Firecrawl MCP server: career pages no adapter reads, and job platforms by search. */
+    firecrawl?: { enabled: boolean; maxCalls: number; maxCompanies: number; platforms: string[] };
+    /** Startup and remote-first boards. `boards` picks which run; the rest say what to ask each one for. */
+    startups: { enabled: boolean; boards: string[]; remoteCountry: string; wellfoundLocation: string; wellfoundRoles: string[]; rocketshipRoles: string[]; skills: string[] };
     apis: { jsearch: boolean; adzuna: boolean; jooble: boolean; places: string[]; jsearchPerRun: number; adzunaPerRun: number; jooblePerRun: number };
   };
   /** Which provider and model runs each agent role; `default` covers any role not named. */
   agents: { routes: Record<string, AgentRoute> & { default: AgentRoute } };
-  limits: { scoreBatchSize: number; maxScoredPerRun: number; maxTailoredPerRun: number };
+  limits: { scoreBatchSize: number; maxScoredPerRun: number; maxTailoredPerRun: number; jsearchMonthly?: number };
 }
 
 function readJson<T>(path: string, fallback: T): T {
@@ -71,6 +79,20 @@ export function saveSearch(patch: (cfg: SearchConfig) => void) {
   patch(cfg);
   writeFileSync(join(CONFIG_DIR, 'search.json'), JSON.stringify(cfg, null, 2) + '\n');
   return cfg;
+}
+
+const lpa = (n: number) => `${(n / 1e5).toFixed(n % 1e5 ? 1 : 0)} LPA`;
+
+/** The preferences as rules for triage and evaluation prompts. Empty when none are set. */
+export function preferenceRules(cfg: SearchConfig): string {
+  const p = cfg.preferences ?? {};
+  const rules: string[] = [];
+  if (cfg.remote.only) rules.push(`Remote only, open to someone living in ${cfg.locations[0] ?? 'the candidate\'s country'}. Office, hybrid, or remote restricted to other countries = Hard DQ.`);
+  if (p.minAnnualSalary) rules.push(`Pay floor: ${p.currency ?? 'INR'} ${p.minAnnualSalary.toLocaleString('en-IN')} a year (${lpa(p.minAnnualSalary)}). A posted range whose top is below it = Hard DQ. Unknown pay is neutral, but fresher packages, mass hiring and IT-services roles that usually pay below it score lower; roles that clearly pay well above it score higher.`);
+  if (p.experience) rules.push(`Experience: roles asking ${p.experience} years fit best. 3+ years required, Senior, Staff, Lead or Manager = Hard DQ.`);
+  if (p.exclude?.length) rules.push(`Hard DQ: ${p.exclude.join(', ')}.`);
+  for (const n of p.notes ?? []) rules.push(n);
+  return rules.length ? `## Candidate preferences (from GiggleGig settings; they override the brief where they differ)\n\n${rules.map((r) => `- ${r}`).join('\n')}\n` : '';
 }
 
 export function loadTargets(): TargetCompany[] {

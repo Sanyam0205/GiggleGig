@@ -1,8 +1,21 @@
 // Keyed job-search APIs. Each is skipped (with a log line saying why) until its key is in .env.
 import type { SearchConfig } from '../config.ts';
+import { kvGet, kvSet } from '../db.ts';
 import { getJson, htmlToText, isRemote, toIso, type Log, type RawJob } from './types.ts';
 
 const key = (name: string) => process.env[name]?.trim() || null;
+
+/** JSearch's free tier is a monthly request budget; every call is counted so a run stops before overspending it. */
+export function jsearchUsage(cfg?: SearchConfig) {
+  const month = new Date().toISOString().slice(0, 7);
+  return { month, used: Number(kvGet(`quota:jsearch:${month}`) ?? 0), limit: cfg?.limits.jsearchMonthly ?? 200 };
+}
+function spendJsearch(cfg: SearchConfig | undefined, log: Log) {
+  const u = jsearchUsage(cfg);
+  if (u.used >= u.limit) { log(`JSearch skipped: ${u.used}/${u.limit} requests used this month`); return false; }
+  kvSet(`quota:jsearch:${u.month}`, String(u.used + 1));
+  return true;
+}
 
 /** Search terms × places, capped so free tiers last the month. */
 function searches(cfg: SearchConfig, max: number) {
@@ -18,6 +31,7 @@ function searches(cfg: SearchConfig, max: number) {
 export async function jsearchQuery(query: string, log: Log, datePosted = 'month'): Promise<RawJob[]> {
   const k = key('JSEARCH_API_KEY');
   if (!k) { log('JSearch skipped: no JSEARCH_API_KEY'); return []; }
+  if (!spendJsearch(undefined, log)) return [];
   const url = `https://jsearch.p.rapidapi.com/search-v2?query=${encodeURIComponent(query)}&country=in&date_posted=${datePosted}&num_pages=1`;
   const r = await getJson<{ data: { jobs: any[] } }>(url, { headers: { 'x-rapidapi-key': k, 'x-rapidapi-host': 'jsearch.p.rapidapi.com' } });
   return (r.data?.jobs ?? []).map(jsearchToRaw);
@@ -53,7 +67,8 @@ export async function fetchJSearch(cfg: SearchConfig, log: Log): Promise<RawJob[
   if (!k) { log('JSearch skipped: add JSEARCH_API_KEY to .env (RapidAPI, free tier 200 requests/month)'); return []; }
   const jobs: RawJob[] = [];
   for (const { q, where } of searches(cfg, cfg.sources.apis.jsearchPerRun)) {
-    const url = `https://jsearch.p.rapidapi.com/search-v2?query=${encodeURIComponent(`${q} in ${where}`)}&country=in&date_posted=3days&num_pages=1`;
+    if (!spendJsearch(cfg, log)) break;
+    const url = `https://jsearch.p.rapidapi.com/search-v2?query=${encodeURIComponent(`${q} in ${where}`)}&country=in&date_posted=3days&num_pages=1${cfg.remote.only ? '&remote_jobs_only=true&work_from_home=true' : ''}`;
     try {
       const r = await getJson<{ data: { jobs: any[] } }>(url, { headers: { 'x-rapidapi-key': k, 'x-rapidapi-host': 'jsearch.p.rapidapi.com' } });
       jobs.push(...(r.data?.jobs ?? []).map(jsearchToRaw));

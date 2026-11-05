@@ -7,7 +7,8 @@ import { randomBytes } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { extname, join, normalize, resolve } from 'node:path';
 import { candidateState, db, kvGet, kvSet, setCandidateState, setJobStatus } from './db.ts';
-import { GMAIL_DRAFT, runAgent } from './agent.ts';
+import { blockedBy, GMAIL_DRAFT, providerLimits, runAgent } from './agent.ts';
+import { jsearchUsage } from './sources/apis.ts';
 import { loadSearch, loadTargets, saveSearch } from './config.ts';
 import { DESK_DIR, OUTPUT_DIR, ROOT, findPython } from './paths.ts';
 import { addQueue, getJob, jobDir, pipelineCounts, STAGES, weakSpots } from './store.ts';
@@ -74,6 +75,8 @@ function readIf(path: string) {
 const running = new Map<string, number>();
 function startPipeline(cmd: string, args: string[] = [], key = args.length ? `${cmd}:${args.join(',')}` : cmd) {
   if (running.has(key)) return { already: true };
+  const blocked = blockedBy('claude');
+  if (blocked && cmd !== 'restore-profile') throw new Error(`${blocked}. Nothing was started.`);
   // Own process group, so Stop can end the pipeline and every agent it spawned in one signal.
   const child = spawn(process.execPath, [join(ROOT, 'os/cli.ts'), cmd, ...args], { cwd: ROOT, stdio: 'ignore', env: process.env, detached: true });
   running.set(key, child.pid ?? 0);
@@ -106,16 +109,24 @@ const PLATFORMS: { key: string; group: string; name: string; prefix: string; how
   { key: 'gmail:naukri', group: 'gmail', name: 'Naukri alerts', prefix: 'gmail:naukri', how: 'Job-alert emails, read by the Gmail scout' },
   { key: 'gmail:recruiter', group: 'gmail', name: 'Recruiter emails', prefix: 'gmail:recruiter', how: 'Recruiters writing about a specific role' },
   { key: 'gmail:', group: 'gmail', name: 'Other alert emails', prefix: 'gmail:', how: 'Instahyre, Cutshort, Hirist, Otta, YC and others' },
+  { key: 'wellfound', group: 'startups', name: 'Wellfound', prefix: 'wellfound', how: 'Startup jobs, public listing pages' },
+  { key: 'ycombinator', group: 'startups', name: 'Y Combinator', prefix: 'ycombinator', how: 'YC startup jobs, public listing pages' },
+  { key: 'cutshort', group: 'startups', name: 'Cutshort', prefix: 'cutshort', how: 'Indian startup jobs, public listing pages' },
+  { key: 'instahyre', group: 'startups', name: 'Instahyre', prefix: 'instahyre', how: 'Indian startup and product jobs, public listing API' },
+  { key: 'himalayas', group: 'startups', name: 'Himalayas', prefix: 'himalayas', how: 'Remote jobs by country, public API' },
+  { key: 'remoterocketship', group: 'startups', name: 'RemoteRocketship', prefix: 'remoterocketship', how: 'Remote jobs by country, public listing pages' },
+  { key: 'weworkremotely', group: 'startups', name: 'We Work Remotely', prefix: 'weworkremotely', how: 'Remote jobs, public RSS feeds' },
   { key: 'remoteok', group: 'remoteok', name: 'RemoteOK', prefix: 'remoteok', how: 'Public JSON feed' },
   { key: 'remotive', group: 'remotive', name: 'Remotive', prefix: 'remotive', how: 'Public JSON feed' },
   { key: 'hackernews', group: 'hackernews', name: 'HN “Who is hiring”', prefix: 'hackernews', how: 'Monthly thread via the Algolia API' },
+  { key: 'firecrawl:', group: 'firecrawl', name: 'Firecrawl crawl', prefix: 'firecrawl:', how: 'Career pages and job platforms crawled with Firecrawl' },
   { key: 'web:', group: 'web', name: 'Open web search', prefix: 'web:', how: 'Search agent: ATS pages, Wellfound, career sites' },
   { key: 'manual', group: 'manual', name: 'Added by you', prefix: 'manual', how: '/quick-start or node os/cli.ts add' },
 ];
 
 const GROUP_ENABLED = (cfg: ReturnType<typeof loadSearch>, group: string) => ({
   ats: cfg.sources.ats, jobspy: cfg.sources.jobspy.enabled, remoteok: cfg.sources.remoteok, remotive: cfg.sources.remotive,
-  hackernews: cfg.sources.hackernews, gmail: cfg.sources.gmailAlerts.enabled, web: cfg.sources.webSearch.enabled, manual: true,
+  hackernews: cfg.sources.hackernews, startups: cfg.sources.startups?.enabled, firecrawl: cfg.sources.firecrawl?.enabled, gmail: cfg.sources.gmailAlerts.enabled, web: cfg.sources.webSearch.enabled, manual: true,
   apis: cfg.sources.apis.jsearch || cfg.sources.apis.adzuna || cfg.sources.apis.jooble,
 } as Record<string, boolean>)[group];
 
@@ -141,7 +152,7 @@ function sourcesReport() {
   const lastScout = db.prepare(`SELECT id, started_at, ended_at, status FROM runs WHERE agent = 'scout' ORDER BY id DESC LIMIT 1`).get() as any;
   const lines = lastScout ? (db.prepare('SELECT text FROM events WHERE run_id = ? ORDER BY id').all(lastScout.id) as any[]).map((e) => e.text) : [];
   const agentRuns = db.prepare(`SELECT agent, status, started_at, error FROM runs WHERE id IN
-    (SELECT MAX(id) FROM runs WHERE agent IN ('scout:gmail', 'scout:web') GROUP BY agent)`).all() as any[];
+    (SELECT MAX(id) FROM runs WHERE agent IN ('scout:gmail', 'scout:web', 'scout:firecrawl') GROUP BY agent)`).all() as any[];
   return {
     platforms: PLATFORMS.map((p) => ({
       ...p,
@@ -153,6 +164,8 @@ function sourcesReport() {
       jobspy: { enabled: cfg.sources.jobspy.enabled, sites: cfg.sources.jobspy.sites, locations: cfg.sources.jobspy.locations, python: Boolean(findPython()) },
       gmail: { enabled: cfg.sources.gmailAlerts.enabled, lookbackDays: cfg.sources.gmailAlerts.lookbackDays },
       web: { enabled: cfg.sources.webSearch.enabled },
+      firecrawl: { enabled: Boolean(cfg.sources.firecrawl?.enabled), maxCalls: cfg.sources.firecrawl?.maxCalls ?? 0 },
+      startups: { enabled: Boolean(cfg.sources.startups?.enabled), remoteOnly: Boolean(cfg.remote.only), country: cfg.sources.startups?.remoteCountry },
       apis: {
         enabled: cfg.sources.apis.jsearch || cfg.sources.apis.adzuna || cfg.sources.apis.jooble,
         keys: { jsearch: Boolean(process.env.JSEARCH_API_KEY), adzuna: Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY), jooble: Boolean(process.env.JOOBLE_API_KEY) },
@@ -368,7 +381,8 @@ function decorate(j: any) {
     : fit?.eligibility ?? null;
   return {
     ...j, fit: undefined, summary: undefined, triage: tri,
-    verdict: sum ? ({ Apply: 'apply', Consider: 'referral-only', 'Research first': 'referral-only', Skip: 'skip' } as Record<string, string>)[sum.final_decision] ?? null : fit?.verdict ?? null,
+    verdict: sum ? ({ Apply: 'apply', Consider: 'referral-only', 'Research first': 'referral-only', Skip: 'skip' } as Record<string, string>)[sum.final_decision] ?? null : fit?.verdict ?? (tri ? `triage ${String(tri.verdict).toLowerCase()}` : null),
+    triageVerdict: tri?.verdict ?? null,
     rationale: sum ? (sum.top_strengths?.[0] ?? sum.next_action ?? null) : fit?.rationale ?? tri?.reason ?? null,
     evidence: sum ? (sum.top_strengths?.length ? `**${sum.top_strengths[0]}**${sum.hard_stops?.length ? ` · blocker: ${sum.hard_stops[0]}` : ''}` : null) : fit?.evidence ?? null,
     salaryEst: fit?.salary ?? null,
@@ -444,7 +458,7 @@ const routes: [string, RegExp, Handler][] = [
     else where.push(`status NOT IN ('filtered')`);
     if (p.get('q')) { where.push('(company LIKE ? OR title LIKE ?)'); args.push(`%${p.get('q')}%`, `%${p.get('q')}%`); }
     // Jobs an agent is working on, or that wait on you, stay visible even before their new score lands.
-    if (p.get('minFit')) { where.push(`(fit_score >= ? OR status IN ('evaluating','tailoring','awaiting-approval','approved'))`); args.push(Number(p.get('minFit'))); }
+    if (p.get('minFit')) { where.push(`(fit_score >= ? OR status IN ('evaluating','tailoring','awaiting-approval','approved')) AND status NOT IN ('skipped','withdrawn','rejected')`); args.push(Number(p.get('minFit'))); }
     if (p.get('platform')) { where.push('sources LIKE ?'); args.push(`%"${p.get('platform')}%`); }
     if (p.get('company')) { where.push('company LIKE ?'); args.push(`%${p.get('company')}%`); }
     const warm = warmCounts();
@@ -509,6 +523,21 @@ const routes: [string, RegExp, Handler][] = [
     if (!ids.length) throw new Error('no jobs selected');
     return startPipeline('tailor', ids);
   }],
+  ['POST', /^\/api\/evaluate$/, async (req) => {
+    const ids: string[] = ((await readBody(req)).ids ?? []).filter((id: unknown) => typeof id === 'string' && /^[\w-]+$/.test(id)).slice(0, 25);
+    if (!ids.length) throw new Error('no jobs selected');
+    return startPipeline('evaluate', ids);
+  }],
+  ['GET', /^\/api\/limits$/, () => {
+    const day = `datetime('now', 'start of day')`;
+    const today = db.prepare(`SELECT COUNT(*) n, SUM(status = 'failed') failed, SUM(status = 'running') running, ROUND(SUM(cost_usd), 2) usd FROM runs WHERE started_at >= ${day}`).get() as any;
+    return {
+      ...providerLimits(),
+      jsearch: jsearchUsage(loadSearch()),
+      firecrawl: { callsToday: (db.prepare(`SELECT COUNT(*) n FROM events WHERE type = 'tool' AND text LIKE 'mcp.firecrawl%' AND ts >= ${day}`).get() as any).n },
+      runsToday: today,
+    };
+  }],
   ['GET', /^\/api\/stages$/, () => ({ stages: STAGES, counts: pipelineCounts() })],
   ['GET', /^\/api\/queue$/, (_q, _r, _m, url) => (db.prepare(`SELECT q.*, j.company FROM queue q LEFT JOIN jobs j ON j.id = q.job_id
       WHERE q.status = ? ORDER BY q.id DESC LIMIT 200`).all(url.searchParams.get('status') ?? 'pending') as any[]).map(parseQueue)],
@@ -533,7 +562,7 @@ const routes: [string, RegExp, Handler][] = [
     ...(db.prepare('SELECT * FROM runs WHERE id = ?').get(Number(m[1])) as object),
     events: db.prepare('SELECT id, ts, type, text FROM events WHERE run_id = ? ORDER BY id').all(Number(m[1])),
   })],
-  ['POST', /^\/api\/run\/(briefing|scout|score|triage|tailor|calendar|fastlane|inbox)$/, (_q, _r, m) => startPipeline(m[1])],
+  ['POST', /^\/api\/run\/(briefing|scout|score|triage|tailor|calendar|fastlane|inbox)$/, (_q, _r, m) => (m[1] === 'scout' ? startPipeline('scout', ['--score'], 'scout') : startPipeline(m[1]))],
   ['POST', /^\/api\/onboarding\/resume$/, async (req) => {
     const body = await readBody(req);
     if (body.replaceCandidate !== true) throw new Error('Confirm that this resume replaces the current candidate profile and clears its job history.');
@@ -551,6 +580,17 @@ const routes: [string, RegExp, Handler][] = [
     mkdirSync(inbox, { recursive: true });
     const saved = join(inbox, `${randomBytes(16).toString('hex')}${ext}`);
     let resumeText: string | null = null;
+    if (ext === '.pdf') {
+      // Agents get the resume as text: reading a PDF needs tools an unattended run cannot get approval for.
+      const pending = join(inbox, `${randomBytes(16).toString('hex')}.pdf`);
+      try {
+        writeFileSync(pending, bytes, { mode: 0o600, flag: 'wx' });
+        resumeText = execFileSync(findPython() ?? 'python3', ['-I', join(ROOT, 'os/extract_pdf.py'), pending], { encoding: 'utf8', timeout: 15000, maxBuffer: 2 * 1024 * 1024 });
+      } catch (error: any) {
+        throw new Error(error.status === 2 ? 'This PDF has no text layer (it is a scanned image). Upload a text PDF or a DOCX.'
+          : /pypdf/.test(String(error.stderr ?? error.message)) ? 'Reading PDFs needs pypdf: run npm run setup, then upload again.' : 'Could not read text from this PDF. Try a DOCX.');
+      } finally { rmSync(pending, { force: true }); }
+    }
     if (ext === '.docx') {
       const pending = join(inbox, `${randomBytes(16).toString('hex')}.zip`);
       try {
@@ -573,7 +613,7 @@ const routes: [string, RegExp, Handler][] = [
     resetCandidateWorkspace();
     mkdirSync(inbox, { recursive: true });
     writeFileSync(saved, bytes, { mode: 0o600, flag: 'wx' });
-    const upload = resumeText ? saved.replace(/\.docx$/, '.txt') : saved;
+    const upload = resumeText ? saved.replace(/\.(docx|pdf)$/, '.txt') : saved;
     if (resumeText) writeFileSync(upload, resumeText, { mode: 0o600, flag: 'wx' });
     return { ...startPipeline('intake', [upload], 'setup-context'), filename: ext };
   }],
@@ -594,7 +634,7 @@ const routes: [string, RegExp, Handler][] = [
       if (b.automation) c.automation = { ...c.automation, ...b.automation };
       if (b.source) {
         const { key, enabled } = b.source;
-        if (key === 'jobspy' || key === 'gmailAlerts' || key === 'webSearch') (c.sources as any)[key].enabled = enabled;
+        if (key === 'jobspy' || key === 'gmailAlerts' || key === 'webSearch' || key === 'startups' || key === 'firecrawl') (c.sources as any)[key].enabled = enabled;
         else if (key === 'apis') { c.sources.apis.jsearch = enabled; c.sources.apis.adzuna = enabled; c.sources.apis.jooble = enabled; }
         else if (key in c.sources) (c.sources as any)[key] = enabled;
       }
@@ -605,7 +645,7 @@ const routes: [string, RegExp, Handler][] = [
     });
     return { automation: cfg.automation, sources: cfg.sources, alerts: cfg.alerts, fastlane: cfg.fastlane, inbox: cfg.inbox };
   }],
-  ['POST', /^\/api\/run\/scout\/(ats|jobspy|apis|jsearch|adzuna|jooble|remoteok|remotive|hackernews|gmail|web)$/, (_q, _r, m) => startPipeline('scout', [m[1]], `scout:${m[1]}`)],
+  ['POST', /^\/api\/run\/scout\/(ats|jobspy|apis|jsearch|adzuna|jooble|startups|firecrawl|remoteok|remotive|hackernews|gmail|web)$/, (_q, _r, m) => startPipeline('scout', [m[1], '--score'], `scout:${m[1]}`)],
   ['GET', /^\/api\/config$/, () => ({ search: loadSearch(), lanUrl: lanUrl(), profile: profile(), candidate: candidateState() })],
 ];
 

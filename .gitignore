@@ -27,5 +27,6 @@ output/
 *.log
 
 # Design-tool cache and generated mock-ups
+.impeccable/
 .impeccable/hook.cache.json
 .impeccable/mocks/

@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { join } from 'node:path';
 import { db, setJobStatus, withLock } from '../db.ts';
 import { pool, startRun } from '../agent.ts';
+import { loadSearch, preferenceRules } from '../config.ts';
 import { getJob } from '../store.ts';
 import { ENGINE_DATA, ENGINE_DIR, ENGINE_FILES, yaml } from './paths.ts';
 import { engineAgent, engineScript } from './run.ts';
@@ -41,6 +42,8 @@ function resolvedPrompt(): string {
     const p = join(ENGINE_DATA, f);
     if (existsSync(p)) text += `\n\n---\n\n## Runtime personalization: ${f}\n\n${readFileSync(p, 'utf8').replace(/^/gm, '    ')}\n`;
   }
+  const prefs = preferenceRules(loadSearch());
+  if (prefs) text += `\n\n---\n\n## Runtime personalization: settings\n\n${prefs.replace(/^/gm, '    ')}\n`;
   if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text);
   return path;
 }

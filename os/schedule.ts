@@ -15,7 +15,7 @@ const JOBS: Job[] = [
   { label: 'os.jobsearch.desk', args: ['serve'], when: { keepAlive: true } },
   { label: 'os.jobsearch.briefing', args: ['briefing'], when: { calendar: { Hour: 7, Minute: 0 } } },
   // Scout only; the fast lane and the morning briefing score what it finds, so plan usage stays predictable.
-  { label: 'os.jobsearch.scout', args: ['scout', 'ats', 'jobspy', 'jsearch', 'adzuna', 'jooble', 'remoteok', 'remotive', 'gmail'], when: { interval: 4 * 3600 } },
+  { label: 'os.jobsearch.scout', args: ['scout', 'ats', 'jobspy', 'jsearch', 'adzuna', 'jooble', 'startups', 'firecrawl', 'remoteok', 'remotive', 'gmail'], when: { interval: 4 * 3600 } },
   { label: 'os.jobsearch.watch', args: ['watch'], when: { interval: 1800 } },
   { label: 'os.jobsearch.fastlane', args: ['fastlane'], when: { interval: (loadSearch().fastlane.everyMinutes ?? 90) * 60 } },
 ];

@@ -18,7 +18,7 @@ export async function fastlane() {
   cfg.sources.apis = { ...base.sources.apis, places: base.sources.apis.places.slice(0, 1), jsearchPerRun: f.jsearchCalls, adzunaPerRun: 3, jooblePerRun: 3 };
   const targets = loadTargets().filter((t) => (t.tier ?? 3) <= f.tier);
 
-  await scout(['ats', 'jobspy', 'jsearch', 'adzuna', 'jooble'], { cfg, targets, label: 'fastlane' });
+  await scout(['ats', 'jobspy', 'jsearch', 'adzuna', 'jooble', 'startups'], { cfg, targets, label: 'fastlane' });
   await engineScore(base.engine?.evaluateFastlane ?? 3);
   const alerted = await alertNewMatches();
 

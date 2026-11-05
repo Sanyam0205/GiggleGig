@@ -1,2 +1,4 @@
 # Optional: LinkedIn / Indeed / Naukri / Glassdoor / Google Jobs scraping (os/sources/jobspy_scrape.py). Needs Python 3.10+.
 python-jobspy
+# Resume upload: text from PDF resumes (os/extract_pdf.py).
+pypdf

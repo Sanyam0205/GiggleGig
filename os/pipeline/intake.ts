@@ -4,13 +4,11 @@ import { join } from 'node:path';
 import { startRun } from '../agent.ts';
 import { loadSearch } from '../config.ts';
 import { setCandidateState } from '../db.ts';
-import { engineScore } from '../engine/index.ts';
 import { ENGINE_DATA, ENGINE_FILES } from '../engine/paths.ts';
 import { syncPortals } from '../engine/portals.ts';
 import { engineScript } from '../engine/run.ts';
 import { push } from '../notify.ts';
 import { CONTEXT_DIR } from '../paths.ts';
-import { scout } from './scout.ts';
 import { runSkill } from './tailor.ts';
 
 const REQUIRED = [ENGINE_FILES.cv, ENGINE_FILES.profile, join(ENGINE_DATA, 'modes/_brief.md'), join(ENGINE_DATA, 'modes/_profile.md'), join(CONTEXT_DIR, 'base-resume.json')];
@@ -47,9 +45,7 @@ export async function intake(file: string) {
 
   const portals = syncPortals();
   setCandidateState('ready');
-  run.log(`Profile ready. Searching ${loadSearch().queries.length} queries and ${portals.companies} company boards for this candidate.`);
-  run.finish('profile built, search started');
-  await scout();
-  await engineScore();
+  run.log(`Profile ready: ${loadSearch().queries.length} queries and ${portals.companies} company boards. Press Search on Matches to look for roles.`);
+  run.finish('profile built');
   return { ok: true };
 }

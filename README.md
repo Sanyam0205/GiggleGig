@@ -3,18 +3,21 @@
 A personal, agent-run job search that runs on your own computer. Upload a resume and GiggleGig:
 
 1. builds a candidate profile from it,
-2. searches job boards, company career pages and your job-alert emails for matching roles,
-3. reviews and scores each role against the profile,
-4. writes a tailored one-page CV for the roles you choose, using only facts from the resume,
+2. when you press **Search**, looks everywhere for matching roles: LinkedIn, Naukri, Indeed and Google Jobs; startup boards (Wellfound, Y Combinator, Cutshort,
+   Instahyre and more); remote boards; the career pages of 100+ companies, from startups to big MNCs; Firecrawl crawls of sites the others miss; and your job-alert emails,
+3. gives every role a quick review against the profile and your rules (remote, pay floor, experience), and drops the rest,
+4. evaluates in depth only the roles you pick, then writes a tailored one-page CV for the ones you choose, using only facts from the resume,
 5. drafts the application answers and outreach, and tracks everything on a local dashboard (the **desk**).
 
 **Nothing is sent or submitted for you.** Agents write drafts and you approve them on the desk. Email items become Gmail drafts, and you press Send yourself.
 
 ```
-upload resume → profile built and checked → search starts
-  → scan → quick review (triage) → full role evaluation → you press Tailor
-  → fact-checked CV → you approve → apply (stops before Submit) → status tracking
+upload resume → profile built and checked
+  → you press Search → every source scanned → quick review (cheap, automatic)
+  → you pick roles → full evaluation → you press Tailor → fact-checked CV → you approve → apply (stops before Submit)
 ```
+
+Nothing runs on its own: every search, evaluation and CV starts from a button (or a command), and the desk shows your AI plan's limits before you press it.
 
 Everything runs locally: a Node server, one SQLite file, and AI agents driven through the command-line tools you already have signed in (Claude Code, optionally Codex). There are no accounts, no hosted service and no API bill beyond your own AI plan.
 
@@ -32,6 +35,7 @@ Everything runs locally: a Node server, one SQLite file, and AI agents driven th
 | **[Claude Code](https://claude.com/claude-code)**, signed in | Runs the agents | Install it, then run `claude` once and sign in. A paid Claude plan is needed for real use. |
 | Python 3.10 or newer | Optional: LinkedIn, Indeed, Naukri, Glassdoor and Google Jobs scraping (JobSpy) | Without it, every other source still works. |
 | Codex CLI (ChatGPT app) | Optional: can run some agent roles instead of Claude | See [Choosing which AI runs each job](#choosing-which-ai-runs-each-job). |
+| [Firecrawl](https://firecrawl.dev) account | Optional: crawls career pages and job platforms the other sources cannot read | The project's `.mcp.json` adds the Firecrawl MCP server. Approve it and sign in once: run `claude` in this folder, then `/mcp`. Calls use Firecrawl credits. |
 | Gmail and Google Calendar connected to your Claude account | Optional: job-alert emails, the inbox watcher, interview detection, Gmail drafts | Connect them in Claude's connector settings. Agents get read and draft access only. |
 
 ---
@@ -46,7 +50,7 @@ npm run desk         # starts the desk
 ```
 
 Open **<http://localhost:4321>**, go to **Agents**, and choose the candidate's resume (PDF, DOCX, TXT or Markdown, up to 5 MB).
-Intake takes about two minutes. When it finishes, the search starts on its own.
+Intake takes about two minutes (PDFs and DOCX files are converted to text first). Then go to **Matches** and press **Search now**.
 
 If you cloned without `--recurse-submodules`, run `git submodule update --init` (setup does this for you).
 
@@ -56,7 +60,7 @@ It is safe to run again; each step skips what is already done.
 1. Checks your Node version and fetches the engine submodule (`engine/career-ops`).
 2. Installs the engine's dependencies, including the Chromium browser it uses to make PDFs.
 3. Installs and builds the desk (`desk/`).
-4. Creates a Python virtual environment in `.venv/` and installs JobSpy (skipped with a warning if Python 3.10+ is missing).
+4. Creates a Python virtual environment in `.venv/` and installs JobSpy and pypdf (for PDF resumes). Skipped with a warning if Python 3.10+ is missing; upload DOCX then.
 5. Creates `.env` from `.env.example`, and the empty candidate folders (`context/`, `engine-data/`, `data/`, `output/`).
 6. Turns on the commit guard that blocks secrets (`git config core.hooksPath .githooks`).
 7. Tells you whether Claude Code and Codex were found.
@@ -91,19 +95,36 @@ After the resume upload finishes, `npm run doctor` should report `"onboardingNee
 |---|---|
 | **Today** | What needs you now: CVs waiting for approval, upcoming interviews, new strong matches. |
 | **Matches** and **Pipeline** | Every role by stage (Inbox → Being worked on → Ready to decide → Waiting for you → Applied → Interviewing → Closed). |
-| **Companies** | Type a company name to find and score every feasible role there. |
+| **Companies** | Type any company name, MNC or startup, to fetch its open roles straight from its own career site (see below). |
 | **Sources** | Which job sources are on, how many roles each found, API-key status, automation and alert settings. |
 | **Contacts** | Import your LinkedIn connections to see who you know at each company. |
 | **Interviews** | Upcoming rounds, prep files and your weak spots. |
-| **Agents** | Every agent run step by step, a **Stop** button, and the **resume upload** that starts a new candidate. |
+| **Agents** | Your **usage and limits** (Claude 5-hour session and weekly use, Codex, JSearch, Firecrawl), every agent run step by step, a **Stop** button, and the **resume upload**. |
 
-**A normal day**
+### The flow, start to finish
 
-1. Open the desk. The morning briefing has scouted, scored and evaluated overnight (if you installed the schedule).
-2. Open a role under **Ready to decide**, read the evaluation, and press **Tailor resume** (optionally with instructions, e.g. "lead with the data-pipeline work").
-3. Review the CV under **Waiting for you**, then **Approve**. This opens the apply page; you apply yourself and press **Mark applied**.
+1. **Search.** Matches → **Search now**. Roles are saved as each source finishes, and each gets a quick review (about $0.02 for 8 roles).
+   Office, region-locked, internship and below-your-pay-floor roles are dropped before any AI is used.
+2. **Pick.** Matches lists everything that passed, best first, with the reason. Tick the ones worth a closer look (Table view).
+3. **Evaluate.** **Evaluate selected** writes a full report per role: requirement-by-requirement match, pay, red flags, and a verdict (about 3 minutes each).
+4. **Tailor.** **Tailor selected** (or Tailor on one role) writes a one-page CV from your profile, fact-checked against it. Add instructions if you like,
+   for example "lead with the security work".
+5. **Apply.** The CV waits under **Today → Waiting for you**. **Approve** opens the apply page; you apply yourself and press **Mark applied**.
 
-Tailoring is manual on purpose. Set `automation.tailor` to `"auto"` in `config/search.json` if you want strong matches tailored automatically.
+Before a big run, glance at **Agents → Usage and limits**. If a Claude limit is already hit, the desk refuses to start new runs and tells you when it resets.
+
+### Any company's career page, on demand
+
+Companies → type a name (Microsoft, Adobe, Razorpay…). GiggleGig looks for, in this order:
+1. a public job board (Greenhouse, Lever, Ashby, Workable, SmartRecruiters);
+2. a careers site its free adapters read: Workday, SuccessFactors, Oracle, Eightfold, iCIMS, Taleo, Amazon, Google, IBM and dozens more;
+3. otherwise an agent opens the company's careers site with Firecrawl, which renders JavaScript-heavy pages, and reads its search results.
+
+Whatever it finds is remembered, so that company is checked on every later search too.
+
+> Uploading a resume **replaces the current candidate**. It clears the job history, queue, contacts, interviews and run history. The previous candidate's profile files are
+> moved (not deleted) to `data/previous-candidate/`; `node os/cli.ts restore-profile` puts the newest back. Your settings (`config/search.json`, including your
+> preferences) are kept.
 
 > Uploading a resume **replaces the current candidate**. It clears the job history, queue, contacts, interviews and run history. The previous candidate's profile files are moved (not deleted) to `data/previous-candidate/`.
 
@@ -117,14 +138,16 @@ Open this folder in Claude Code and type, for example:
 ### Command line
 ```bash
 node os/cli.ts                        # list every command
-npm run briefing                      # scout → triage → evaluate → tracker sync → calendar → inbox
-node os/cli.ts scout jobspy remotive  # specific sources: ats jobspy jsearch adzuna jooble remoteok remotive hackernews gmail web
+node os/cli.ts scout --score         # what Search now does: every enabled source, then the quick review
+node os/cli.ts scout firecrawl        # specific sources: ats jobspy jsearch adzuna jooble startups firecrawl remoteok remotive hackernews gmail web
+node os/cli.ts evaluate <id> <id>     # full evaluation of the roles you pick
 node os/cli.ts triage 40              # quick review of up to 40 new roles
-node os/cli.ts evaluate <job-id>      # full evaluation of one role
 node os/cli.ts tailor <job-id> --notes "lead with the LLM work"
 node os/cli.ts company "Razorpay"     # every feasible role at one company
 node os/cli.ts fastlane               # only postings from the last few hours
 node os/cli.ts inbox                  # read hiring emails and update the pipeline
+node os/cli.ts restore-profile        # put back the profile a resume upload archived
+npm run briefing                      # search + calendar + inbox in one go
 node os/cli.ts engine doctor          # health check (also: verify, update-check, update, rollback)
 ```
 Until a candidate exists, every command that searches or scores says so and stops.
@@ -140,11 +163,15 @@ upload fills in the queries, target titles and locations; edit the file or use t
 | Setting | Meaning |
 |---|---|
 | `queries`, `titleInclude`, `titleExclude`, `locations`, `maxAgeDays` | What to look for and what to filter out before any AI is used |
-| `sources.*` | Turn each source on or off; `jobspy.sites`, results per query, how recent |
+| `remote.only` | `true` keeps only remote roles open to your `locations`; office, hybrid and region-locked roles are dropped before any AI is used |
+| `preferences` | Your own rules: `minAnnualSalary` (e.g. `700000` for 7 LPA; posted pay below it is dropped, unknown pay is judged by the reviewer), `experience` (e.g. `"1-2"`), `exclude` (internships, trainee roles…) and free-form `notes`. They survive a resume upload and are read by every review |
+| `sources.*` | Turn each source on or off; `jobspy.sites`, results per query, how recent; `startups` for Wellfound, Y Combinator and the other startup boards |
 | `thresholds` | `apply` and `skip` cut-offs on a 0–100 scale (80 = 4.0 out of 5) |
 | `automation` | `tailor: "manual"` or `"auto"`, and the minimum score for auto |
 | `alerts`, `fastlane`, `inbox` | Phone alerts, the fresh-postings lane, the email watcher (alerts and inbox are off by default) |
-| `engine` | How many roles to review and evaluate per run (this is what bounds your AI usage) |
+| `engine` | Quick-review batch size; `autoEvaluate: false` (default) keeps full evaluation for the roles you pick |
+| `sources.firecrawl` | `maxCalls` per run (credits), `maxCompanies` career sites per run, and the `platforms` it searches |
+| `limits.jsearchMonthly` | JSearch's free monthly requests; searches stop there |
 | `agents.routes` | Which AI runs each job, see below |
 
 ### Job-board API keys: `.env`
@@ -174,7 +201,7 @@ The Agents page shows the running total for the last 24 hours.
 
 ## Optional extras
 
-**Run it every day (macOS).**
+**Run it on a schedule (macOS, off by default).** GiggleGig is built to run when you press a button. If you do want it unattended:
 ```bash
 npm run schedule:install     # desk always on · 07:00 briefing · scout every 4 h · fast lane · inbox and follow-ups every 30 min
 npm run schedule:uninstall
@@ -227,8 +254,12 @@ The alert's Approve and Tailor buttons work while your phone is on the same Wi-F
 
 | Problem | Fix |
 |---|---|
+| Resume upload: "no text layer" | The PDF is a scanned image. Export a text PDF from your editor, or upload a DOCX. |
+| Resume upload: "needs pypdf" | `npm run setup` (or `.venv/bin/pip install pypdf`). |
+| "Claude usage limit reached; resets …" | Your plan's 5-hour or weekly limit is used up. Wait for the reset shown on **Agents → Usage and limits**. |
+| Firecrawl crawl failed | Approve and sign in to the server once: `claude` in this folder, then `/mcp` → firecrawl. Check your credits at firecrawl.dev. |
 | `Claude Code binary not found` | Install Claude Code, or set `CLAUDE_BIN=/path/to/claude` in `.env`. |
-| Every command says "no candidate yet" or "intake failed" | Upload a resume on **Agents**. If intake failed, the reason is shown there and in the run's steps; fix it and upload again. |
+| Every command says "no candidate yet" or "intake failed" | Upload a resume on **Agents**. If intake failed, the reason is shown there; fix it and upload again, or `node os/cli.ts restore-profile` to go back to the previous profile. |
 | `Desk not built yet` | `npm run desk:build` |
 | No LinkedIn / Indeed results | Python 3.10+ and `.venv` are needed. Re-run `npm run setup`. These sites rate-limit; fewer queries and locations help. |
 | CVs have no PDF | `cd engine/career-ops && npx playwright install chromium` |

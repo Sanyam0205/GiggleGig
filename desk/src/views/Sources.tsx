@@ -16,9 +16,11 @@ const GROUPS: { key: string; setting: string; run: string; title: string; note: 
   } },
   { key: 'ats', setting: 'ats', run: 'ats', title: 'Company career boards', note: () => 'Checks configured company career sites and supported applicant tracking systems.' },
   { key: 'gmail', setting: 'gmailAlerts', run: 'gmail', title: 'Alert emails (Gmail)', note: (g) => `Reads job alerts from the last ${g.lookbackDays} days. Read-only; nothing is labelled or sent` },
+  { key: 'startups', setting: 'startups', run: 'startups', title: 'Startup and remote boards', note: (g) => `Wellfound, Y Combinator, Cutshort, Instahyre, Himalayas and more${g.remoteOnly ? `. Remote roles open to ${g.country} only` : ''}` },
   { key: 'remoteok', setting: 'remoteok', run: 'remoteok', title: 'RemoteOK', note: () => 'Remote roles, public feed' },
   { key: 'remotive', setting: 'remotive', run: 'remotive', title: 'Remotive', note: () => 'Remote software roles, public feed' },
   { key: 'hackernews', setting: 'hackernews', run: 'hackernews', title: 'Hacker News', note: () => 'This month’s “Who is hiring” thread' },
+  { key: 'firecrawl', setting: 'firecrawl', run: 'firecrawl', title: 'Firecrawl crawl', note: (g) => `An agent crawls career pages no adapter reads and searches LinkedIn, Naukri, Wellfound and other platforms with Firecrawl. Up to ${g.maxCalls} Firecrawl calls a run (they use Firecrawl credits).` },
   { key: 'web', setting: 'webSearch', run: 'web', title: 'Open web search', note: () => 'An agent searches ATS pages, Wellfound and career sites the other scouts miss, and adds boards it discovers' },
 ];
 
@@ -39,7 +41,7 @@ export function Sources() {
   }
   async function run(key: string) {
     setBusy(key);
-    try { await api.scoutOne(key); toast('Scout started — watch the Agents tab or the dispatch log.'); }
+    try { await api.scoutOne(key); toast('Scout started. Roles are saved as each source finishes, then scored.'); }
     catch (e: any) { toast(e.message, true); }
     finally { window.setTimeout(() => setBusy(null), 1500); }
   }
@@ -57,7 +59,7 @@ export function Sources() {
           {data.lastScout ? ` · last scout ${ago(data.lastScout.ended_at ?? data.lastScout.started_at)}` : ' · never scouted'}
         </span>
         <span className="sp" />
-        <button className="btn" disabled={busy === 'all'} onClick={async () => { setBusy('all'); await api.start('scout'); toast('Scouting every enabled source.'); window.setTimeout(() => setBusy(null), 1500); }}>
+        <button className="btn" disabled={busy === 'all'} onClick={async () => { setBusy('all'); await api.start('scout'); toast('Scouting every enabled source. Roles appear as each one finishes, then get scored.'); window.setTimeout(() => setBusy(null), 1500); }}>
           Scout all now
         </button>
       </header>
@@ -74,7 +76,7 @@ export function Sources() {
       {GROUPS.map((g) => {
         const group = data.groups[g.key];
         const rows = byGroup(g.key);
-        const agent = g.key === 'gmail' ? agentRun('scout:gmail') : g.key === 'web' ? agentRun('scout:web') : null;
+        const agent = g.key === 'gmail' ? agentRun('scout:gmail') : g.key === 'web' ? agentRun('scout:web') : g.key === 'firecrawl' ? agentRun('scout:firecrawl') : null;
         const running = data.running.some((r) => r.includes(g.run)) || busy === g.run;
         return (
           <section key={g.key} className={`source${group.enabled ? '' : ' off'}`}>

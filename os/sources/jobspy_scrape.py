@@ -26,14 +26,15 @@ def main():
     for query in args["queries"]:
         for location in args["locations"]:
             done += 1
-            google_term = f"{query} jobs near {location} since yesterday"
+            remote_only = bool(args.get("remoteOnly"))
+            google_term = f"remote {query} jobs {location} since yesterday" if remote_only else f"{query} jobs near {location} since yesterday"
             try:
                 df = scrape_jobs(
                     site_name=args["sites"],
                     search_term=query,
                     google_search_term=google_term,
                     location=location,
-                    is_remote=location.lower() == "remote",
+                    is_remote=remote_only or location.lower() == "remote",
                     country_indeed=args.get("country", "India"),
                     results_wanted=args["resultsPerQuery"],
                     hours_old=args["hoursOld"],
@@ -54,7 +55,8 @@ def main():
                     "company": clean(row.get("company")) or "Unknown",
                     "title": clean(row.get("title")),
                     "location": clean(row.get("location")),
-                    "remote": bool(clean(row.get("is_remote"))),
+                    # LinkedIn honours the remote filter but rarely labels the row; other sites label it themselves.
+                    "remote": bool(clean(row.get("is_remote"))) or (remote_only and row.get("site") == "linkedin"),
                     "url": clean(row.get("job_url")),
                     "applyUrl": clean(row.get("job_url_direct")) or clean(row.get("job_url")),
                     "description": clean(row.get("description")),

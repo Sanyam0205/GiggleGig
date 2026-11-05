@@ -41,8 +41,7 @@ const commands: Record<string, { help: string; run: () => unknown | Promise<unkn
         try { await fn(); } catch (e: any) { failed.push(`${name}: ${e.message ?? e}`); console.error(`${name} failed: ${e.message ?? e}`); }
       };
       await step('update check', engineCheckUpdate);
-      await step('scout', () => scout());
-      await step('score', () => engineScore());
+      await step('search', async () => (await import('./pipeline/search.ts')).search());
       await step('tailor', () => tailor());
       await step('tracker sync', syncFromTracker);
       await step('housekeeping', housekeeping);
@@ -58,7 +57,13 @@ const commands: Record<string, { help: string; run: () => unknown | Promise<unkn
     run: async () => (await import('./schedule.ts')).schedule(args[0] ?? 'status'),
   },
   stats: { help: 'stats — jobs by status', run: () => pipelineCounts() },
-  scout: { help: 'scout [ats jobspy jsearch adzuna jooble remoteok remotive hackernews gmail web]', run: () => scout(args) },
+  scout: {
+    help: 'scout [ats jobspy jsearch adzuna jooble startups remoteok remotive hackernews gmail web] [--score] — find roles; --score also triages them',
+    run: async () => {
+      if (has('score')) return (await import('./pipeline/search.ts')).search(args);
+      return scout(args);
+    },
+  },
   score: { help: 'score [evaluate-limit] — career-ops triage, then full A–G evaluation of what passes', run: () => engineScore(args[0] ? Number(args[0]) : undefined) },
   'score-legacy': { help: 'score-legacy [limit] — the old 0–100 scorer', run: () => score(args[0] ? Number(args[0]) : undefined) },
   triage: { help: 'triage [limit] — career-ops first-pass triage only', run: async () => (await import('./engine/triage.ts')).triage(args[0] ? Number(args[0]) : undefined) },
@@ -117,6 +122,15 @@ const commands: Record<string, { help: string; run: () => unknown | Promise<unkn
   watch: {
     help: 'watch — every-30-minutes job: inbox watcher + due follow-ups',
     run: async () => ({ inbox: await (await import('./pipeline/inbox.ts')).watchInbox(), followUps: promoteDue() }),
+  },
+  'restore-profile': {
+    help: 'restore-profile [archive-folder] — put back the profile a resume upload archived (newest by default)',
+    run: async () => {
+      const r = (await import('./reset.ts')).restoreCandidate(args[0]);
+      const { setCandidateState } = await import('./db.ts');
+      setCandidateState('ready');
+      return r;
+    },
   },
   intake: {
     help: 'intake <resume file> — build the candidate profile from a resume, then start the search for it',

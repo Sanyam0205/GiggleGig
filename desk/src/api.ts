@@ -90,6 +90,8 @@ export const api = {
   importContacts: (csv: string) => req<{ added: number; updated: number; total: number }>('/api/contacts/import', { method: 'POST', body: JSON.stringify({ csv }) }),
   alerts: () => req<AlertsInfo>('/api/alerts'),
   testAlert: () => req<{ ok: boolean }>('/api/alerts/test', { method: 'POST' }),
+  evaluateMany: (ids: string[]) => req('/api/evaluate', { method: 'POST', body: JSON.stringify({ ids }) }),
+  limits: () => req<any>('/api/limits'),
   tailorMany: (ids: string[]) => req(`/api/tailor`, { method: 'POST', body: JSON.stringify({ ids }) }),
   matches: (params: { minFit?: number; platform?: string; q?: string; status?: string }) =>
     req<MatchRow[]>(`/api/jobs?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)]))}`),

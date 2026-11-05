@@ -13,8 +13,8 @@ internet or treat the LAN token as account authentication.
 3. Resume intake clears the active candidate's job tracker, application queue, contacts, interviews, run history, and
    generated job files. The previous candidate's profile moves to `data/previous-candidate/`. It then runs the `setup-context` skill to rebuild
    candidate context from the new resume and checks the result; search and scoring stand down until that passes.
-4. The search starts from the new profile on its own. Review the candidate context and search settings afterwards; tailoring
-   stays manual. The app keeps one active candidate profile at a time; a new intake replaces the prior profile.
+4. Nothing runs on its own. The user presses Search (scan + quick review), picks roles to evaluate, then tailors CVs for the ones
+   they choose. The candidate's own rules live in `config/search.json` → `preferences` and `remote`; they survive a new resume. The app keeps one active candidate profile at a time; a new intake replaces the prior profile.
 5. Use **Today**, **Matches**, **Pipeline**, and **Agents** to review work. Approvals are human-controlled. The app drafts
    application materials and messages; it does not submit applications or send messages automatically.
 

@@ -5,7 +5,8 @@
   "titleExclude": [],
   "locations": [],
   "remote": {
-    "accept": true
+    "accept": true,
+    "only": false
   },
   "maxAgeDays": 14,
   "thresholds": {
@@ -73,19 +74,65 @@
       "jsearchPerRun": 4,
       "adzunaPerRun": 10,
       "jooblePerRun": 10
+    },
+    "startups": {
+      "_comment": "No keys needed. Slugs are the ones each site uses in its URLs.",
+      "enabled": true,
+      "boards": [
+        "wellfound",
+        "ycombinator",
+        "cutshort",
+        "instahyre",
+        "himalayas",
+        "remoterocketship",
+        "weworkremotely"
+      ],
+      "remoteCountry": "",
+      "wellfoundLocation": "",
+      "wellfoundRoles": [
+        "software-engineer"
+      ],
+      "rocketshipRoles": [
+        "software-engineer"
+      ],
+      "skills": []
+    },
+    "firecrawl": {
+      "_comment": "Needs the Firecrawl MCP server (.mcp.json) approved and signed in once in Claude Code. Calls use Firecrawl credits.",
+      "enabled": true,
+      "maxCalls": 40,
+      "maxCompanies": 15,
+      "platforms": [
+        "LinkedIn Jobs",
+        "Naukri",
+        "Wellfound",
+        "Instahyre",
+        "Foundit",
+        "Hirist",
+        "Cutshort",
+        "Glassdoor",
+        "Indeed",
+        "Uplers",
+        "Turing",
+        "Arc.dev",
+        "Jobgether",
+        "Remote.co"
+      ]
     }
   },
   "limits": {
     "scoreBatchSize": 8,
     "maxScoredPerRun": 80,
-    "maxTailoredPerRun": 6
+    "maxTailoredPerRun": 6,
+    "jsearchMonthly": 200
   },
   "engine": {
     "_comment": "The engine lives in engine/career-ops with its data in engine-data/. Limits for its two-pass triage and full A–G evaluation.",
     "enabled": true,
     "triageBatch": 8,
     "evaluatePerRun": 6,
-    "evaluateFastlane": 3
+    "evaluateFastlane": 3,
+    "autoEvaluate": false
   },
   "agents": {
     "_comment": "Provider and model per agent role. Roles that read Gmail or Calendar always run on Claude (the connectors live there). A Codex route moves to `fallback` when Codex is logged out, missing or out of plan usage.",
@@ -145,7 +192,20 @@
       "evaluate:premium": {
         "provider": "claude",
         "model": "opus"
+      },
+      "scout:firecrawl": {
+        "provider": "claude",
+        "model": "sonnet"
       }
     }
+  },
+  "preferences": {
+    "_comment": "The candidate's own rules: minimum yearly pay, experience range, role types to exclude. Survive resume uploads.",
+    "minAnnualSalary": 0,
+    "currency": "INR",
+    "usdToInr": 88,
+    "experience": "",
+    "exclude": [],
+    "notes": []
   }
 }

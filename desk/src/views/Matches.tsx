@@ -19,7 +19,8 @@ export const platformName = (src: string) => {
   if (kind === 'jsearch') return names[site] ?? (site ? site.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Google Jobs');
   if (kind === 'gmail') return site?.startsWith('linkedin') ? 'LinkedIn alert' : `${(site ?? 'email').replace(/-.*/, '').replace(/^./, (c) => c.toUpperCase())} (email)`;
   if (kind === 'web') return 'Web search';
-  return ({ greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', smartrecruiters: 'SmartRecruiters', adzuna: 'Adzuna', jooble: 'Jooble', remoteok: 'RemoteOK', remotive: 'Remotive', hackernews: 'HN', manual: 'You' } as Record<string, string>)[kind] ?? kind;
+  if (kind === 'firecrawl') return site ? `${site.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase())} (crawl)` : 'Firecrawl';
+  return ({ greenhouse: 'Greenhouse', lever: 'Lever', ashby: 'Ashby', workable: 'Workable', smartrecruiters: 'SmartRecruiters', adzuna: 'Adzuna', jooble: 'Jooble', remoteok: 'RemoteOK', remotive: 'Remotive', hackernews: 'HN', manual: 'You', wellfound: 'Wellfound', ycombinator: 'Y Combinator', cutshort: 'Cutshort', instahyre: 'Instahyre', himalayas: 'Himalayas', remoterocketship: 'RemoteRocketship', weworkremotely: 'We Work Remotely', boards: 'Company board' } as Record<string, string>)[kind] ?? kind;
 };
 
 /** Posted pay wins; otherwise the scorer's estimate, labelled as one. */
@@ -57,6 +58,17 @@ export function Matches() {
       toast(`Tailoring ${ids.length} CV${ids.length > 1 ? 's' : ''}. They're in Pipeline → Being worked on until the CVs are ready.`);
     } catch (e: any) { toast(e.message, true); }
   }
+  async function evaluate(ids: string[]) {
+    try {
+      await api.evaluateMany(ids);
+      setPicked(new Set());
+      toast(`Evaluating ${ids.length} role${ids.length > 1 ? 's' : ''}: about 3 minutes each. Reports appear on each job.`);
+    } catch (e: any) { toast(e.message, true); }
+  }
+  async function searchNow() {
+    try { await api.start('scout'); toast('Searching every enabled source. Roles appear as each one finishes, and get a quick review.'); }
+    catch (e: any) { toast(e.message, true); }
+  }
   async function scoreNow() {
     await api.start('score');
     toast('Scoring started — matches appear here as each batch finishes.');
@@ -73,6 +85,7 @@ export function Matches() {
           {unscored > 0 && <> · <button className="link" onClick={scoreNow}>{unscored} waiting to be scored — score now</button></>}
         </span>
         <span className="sp" />
+        <button className="btn frank" onClick={searchNow}>Search now</button>
         <TailorMode />
       </header>
 
@@ -89,6 +102,7 @@ export function Matches() {
         <label className="search"><Icon name="search" size={16} /><input placeholder="Company or role" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search matches" /></label>
         <label className="check"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />Include unscored and below {src?.thresholds.skip ?? 60}</label>
         <span className="sp" />
+        {view === 'list' && picked.size > 0 && <button className="btn" onClick={() => evaluate([...picked])}>Evaluate {picked.size} selected</button>}
         {view === 'list' && picked.size > 0 && <button className="btn frank" onClick={() => tailor([...picked])}>Tailor {picked.size} selected</button>}
         {getWorld() === 'notice' && (
           <div className="viewtoggle mode" role="group" aria-label="View">
@@ -157,7 +171,7 @@ export function MatchTable({ rows, base, picked, toggle, onTailor }: {
               <div className="sub">{j.company}</div>
               {j.rationale && <div className="why">{j.rationale}</div>}
             </td>
-            <td>{j.verdict ? <span className={`tag ${VERDICT[j.verdict]?.tag ?? 'ink'}`}>{VERDICT[j.verdict]?.label ?? j.verdict}</span> : <span className="tag ink">unscored</span>}</td>
+            <td>{j.verdict ? <span className={`tag ${VERDICT[j.verdict]?.tag ?? (j.verdict === 'triage pass' ? 'violet' : 'ink')}`}>{VERDICT[j.verdict]?.label ?? j.verdict}</span> : <span className="tag ink">unscored</span>}</td>
             <td><Pay j={j} /></td>
             <td className="hide-sm">{j.location ?? '—'}{j.remote ? ' · remote' : ''}</td>
             <td><div className="srcs">{[...new Set<string>(JSON.parse(j.sources).map(platformName))].map((p) => <span key={p} className="src">{p}</span>)}</div></td>

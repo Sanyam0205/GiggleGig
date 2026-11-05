@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { loadSearch, type AgentRoute } from './config.ts';
-import { db } from './db.ts';
+import { db, kvGet, kvSet } from './db.ts';
 import { findClaude, findCodex, ROOT } from './paths.ts';
 
 export interface AgentOptions {
@@ -105,8 +105,26 @@ function claudeCommand(opts: AgentOptions, route: AgentRoute) {
   return { bin: findClaude(), args, input: opts.prompt, cleanup: () => {} };
 }
 
+/** Claude reports its plan windows (five-hour session, seven-day) on every run; the desk shows the latest. */
+export function providerLimits() {
+  const read = (k: string) => { const v = kvGet(k); return v ? JSON.parse(v) : null; };
+  return { claude: read('limits:claude'), codex: read('limits:codex') };
+}
+
+/** A limit that is already hit, with when it lifts, or null. */
+export function blockedBy(provider: 'claude' | 'codex'): string | null {
+  const l = providerLimits()[provider];
+  if (!l || l.status !== 'rejected') return null;
+  const until = l.resetsAt ? l.resetsAt * 1000 : 0;
+  if (until && until < Date.now()) return null;
+  return `${provider === 'claude' ? 'Claude' : 'Codex'} usage limit reached${until ? `; resets ${new Date(until).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}`;
+}
+
 function onClaudeLine(msg: any, runId: number, route: AgentRoute, s: RunState) {
-  if (msg.type === 'system' && msg.subtype === 'init') {
+  if (msg.type === 'rate_limit_event' && msg.rate_limit_info) {
+    const i = msg.rate_limit_info;
+    kvSet('limits:claude', JSON.stringify({ at: new Date().toISOString(), status: i.status, type: i.rateLimitType, resetsAt: i.resetsAt, windows: i.unifiedWindows ?? null }));
+  } else if (msg.type === 'system' && msg.subtype === 'init') {
     db.prepare('UPDATE runs SET model = ?, session_id = ? WHERE id = ?').run(msg.model ?? route.model, msg.session_id ?? null, runId);
   } else if (msg.type === 'assistant') {
     for (const block of msg.message?.content ?? []) {
@@ -193,8 +211,11 @@ function onCodexLine(msg: any, runId: number, route: AgentRoute, s: RunState, li
       // Codex has no --max-turns: the same bound is enforced here.
       if (limit && s.toolCalls > limit) stop(`stopped after ${limit} tool calls`);
     }
+  } else if (msg.type === 'turn.completed') {
+    kvSet('limits:codex', JSON.stringify({ at: new Date().toISOString(), status: 'allowed' }));
   } else if (msg.type === 'turn.failed') {
     s.error = s.error ?? (msg.error?.message || 'agent error');
+    if (/usage limit/i.test(s.error ?? '')) kvSet('limits:codex', JSON.stringify({ at: new Date().toISOString(), status: 'rejected', message: s.error }));
   } else if (msg.type === 'error' && !/reconnect/i.test(msg.message ?? '')) {
     s.error = s.error ?? (msg.message || 'agent error');
   }
@@ -231,6 +252,8 @@ function runOnce<T>(opts: AgentOptions, route: AgentRoute): Promise<AgentResult<
       resolve({ runId, ok, text: s.text, data: s.data as T | undefined, costUsd: s.cost, error: s.error });
     };
 
+    const blocked = blockedBy(route.provider);
+    if (blocked) { s.error = blocked; return finish(1, ''); }
     let child;
     try {
       const cmd = route.provider === 'codex' ? codexCommand(opts, route) : claudeCommand(opts, route);

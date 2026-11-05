@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { db } from './db.ts';
 import { ENGINE_DATA } from './engine/paths.ts';
 import { CONTEXT_DIR, DATA_DIR, JOBS_OUT, OUTPUT_DIR } from './paths.ts';
@@ -54,4 +54,21 @@ export function resetCandidateWorkspace() {
   writeFileSync(join(data, 'pipeline.md'), '# Pipeline — Pending URLs\n\nPaste job URLs below as `- [ ] {url}` then run the scout.\n\n## Pending\n\n## Processed\n');
   writeFileSync(join(data, 'blacklist.md'), '# Candidate Blacklist\n\n| Company | Scope | Reason | Added |\n|---------|-------|--------|-------|\n');
   mkdirSync(join(ENGINE_DATA, 'inbox'), { recursive: true });
+}
+
+/** Undo the profile half of a reset: put the newest (or a named) archived profile back. Jobs and history are not restored. */
+export function restoreCandidate(stamp?: string) {
+  const base = join(DATA_DIR, 'previous-candidate');
+  const dir = stamp ? join(base, stamp) : join(base, readdirSync(base).sort().at(-1) ?? '');
+  if (!existsSync(dir) || dir === base) throw new Error('no archived profile to restore');
+  const restored: string[] = [];
+  for (const file of CANDIDATE_FILES) {
+    const root = file.startsWith(ENGINE_DATA) ? ENGINE_DATA : CONTEXT_DIR;
+    const from = join(dir, file.slice(root.length + 1).replace(/\//g, '__'));
+    if (!existsSync(from)) continue;
+    mkdirSync(dirname(file), { recursive: true });
+    copyFileSync(from, file);
+    restored.push(file.slice(file.startsWith(ENGINE_DATA) ? ENGINE_DATA.length - 'engine-data'.length : CONTEXT_DIR.length - 'context'.length));
+  }
+  return { from: dir, restored };
 }

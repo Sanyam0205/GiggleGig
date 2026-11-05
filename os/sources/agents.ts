@@ -25,6 +25,7 @@ export const JOBS_SCHEMA = {
         required: ['company', 'title', 'url', 'via'],
       },
     },
+    careersUrl: { type: 'string', description: "The company's own careers page (company search only)." },
     newBoards: {
       type: 'array',
       description: 'Company job boards discovered on Greenhouse/Lever/Ashby/Workable, so they can be polled directly next time.',
@@ -38,7 +39,7 @@ export const JOBS_SCHEMA = {
   required: ['jobs'],
 };
 
-export type Found = { jobs: (RawJob & { via: string })[]; newBoards?: { company: string; ats: string; slug: string }[] };
+export type Found = { jobs: (RawJob & { via: string })[]; careersUrl?: string; newBoards?: { company: string; ats: string; slug: string }[] };
 
 function normalize(found: Found | undefined, prefix: string): RawJob[] {
   return (found?.jobs ?? []).map((j) => ({
@@ -55,6 +56,7 @@ export async function fetchGmailAlerts(cfg: SearchConfig, log: Log): Promise<{ j
     agent: 'scout:gmail',
     tools: [...GMAIL_READ, 'WebFetch'],
     maxTurns: 30,
+    timeoutMs: 5 * 60_000,
     schema: JOBS_SCHEMA,
     prompt: `You are the inbox scout for a job search. Search Gmail for job-alert and recruiter emails from the last ${days} days.
 
@@ -80,11 +82,12 @@ export async function fetchWebSearch(cfg: SearchConfig, targets: TargetCompany[]
     agent: 'scout:web',
     tools: ['WebSearch', 'WebFetch'],
     maxTurns: 40,
+    timeoutMs: 8 * 60_000,
     schema: JOBS_SCHEMA,
     prompt: `You are the open-web scout for a software engineering job search. Find postings published in the last ${cfg.maxAgeDays} days that the API scouts would miss.
 
 Target roles: ${cfg.queries.join(', ')}. Locations: ${cfg.locations.join(', ')}, or remote roles open to candidates there.
-Use at most ${cfg.sources.webSearch.maxQueries} searches, e.g.:
+${cfg.remote.only ? `Only remote roles a candidate living in ${cfg.locations[0] ?? 'their country'} can take; prefer startups. Skip office, hybrid and region-locked roles.\n` : ''}Use at most ${cfg.sources.webSearch.maxQueries} searches, e.g.:
 - site:jobs.ashbyhq.com OR site:jobs.lever.co OR site:boards.greenhouse.io "<role>" "<location>"
 - site:wellfound.com/jobs "<role>"
 - "<role>" "series A" OR "series B" hiring ${new Date().getFullYear()}

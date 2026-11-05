@@ -4,7 +4,7 @@ import type { SearchConfig } from '../config.ts';
 import type { RawJob } from '../sources/types.ts';
 
 // When two sources report the same job, trust the one closest to the company.
-const SOURCE_RANK = ['boards', 'greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters', 'jsearch', 'jobspy', 'adzuna', 'jooble', 'remoteok', 'remotive', 'hackernews', 'gmail', 'web'];
+const SOURCE_RANK = ['boards', 'greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters', 'wellfound', 'ycombinator', 'cutshort', 'instahyre', 'himalayas', 'weworkremotely', 'remoterocketship', 'jsearch', 'jobspy', 'adzuna', 'jooble', 'remoteok', 'remotive', 'hackernews', 'gmail', 'web'];
 const rank = (s: string) => {
   const i = SOURCE_RANK.indexOf(s.split(':')[0]);
   return i === -1 ? SOURCE_RANK.length : i;
@@ -30,6 +30,18 @@ const word = (w: string) => new RegExp(`\\b${w.trim().replace(/[.*+?^${}()|[\]\\
 
 // Remote roles that are open to this candidate even when another region is also named.
 const OPEN_REMOTE = /\b(global|worldwide|anywhere|apac|asia|international)\b/i;
+const REMOTE_WORDS = /\b(remote|anywhere|worldwide|work from home|wfh)\b/i;
+// Stricter wording for a job description, where a bare "remote" often means "remote teams" or "remote debugging".
+const REMOTE_JD = /\b(fully remote|100% remote|remote[- ](role|position|job|first|only|work|opportunity)|work from home|wfh)\b/i;
+
+/** A posted salary as yearly INR. INR figures under 2 lakh are taken as monthly. Other currencies: unknown. */
+export function yearlyInr(v: number | undefined, currency: string | undefined, cfg: SearchConfig): number | null {
+  if (!v) return null;
+  const c = (currency || 'INR').toUpperCase();
+  if (c === 'INR') return v < 200_000 ? v * 12 : v;
+  if (c === 'USD') return v * (cfg.preferences?.usdToInr ?? 88);
+  return null;
+}
 
 /** Cheap deterministic gate so the LLM only scores plausible roles. Returns a reason when filtered out. */
 export function prefilter(j: RawJob, cfg: SearchConfig): string | null {
@@ -38,14 +50,21 @@ export function prefilter(j: RawJob, cfg: SearchConfig): string | null {
   if (cfg.titleInclude.length && !cfg.titleInclude.some((w) => word(w).test(title))) return 'title: no target keyword';
   const ex = cfg.titleExclude.find((w) => word(w).test(title));
   if (ex) return `title: excluded "${ex.trim()}"`;
+  const floor = cfg.preferences?.minAnnualSalary;
+  const top = floor ? yearlyInr(j.salaryMax, j.currency, cfg) : null;
+  if (floor && top != null && top < floor) return `pay: top of range ₹${Math.round(top).toLocaleString('en-IN')} a year`;
   if (j.postedAt) {
     const ageDays = (Date.now() - Date.parse(j.postedAt)) / 86_400_000;
     if (ageDays > cfg.maxAgeDays) return `stale: ${Math.round(ageDays)}d old`;
   }
   const loc = j.location ?? '';
+  const inPlace = cfg.locations.some((l) => word(l).test(loc));
+  const remote = j.remote || REMOTE_WORDS.test(loc);
+  // Remote-only search: an office role never reaches the AI. A posting with no location at all is left for triage to read.
+  if (cfg.remote.only && loc && !remote && !REMOTE_WORDS.test(title) && !(inPlace && REMOTE_JD.test(j.description ?? ''))) return `not remote: ${loc}`;
   if (!loc || !cfg.locations.length) return null;
-  if (cfg.locations.some((l) => word(l).test(loc))) return null;
-  if (j.remote && cfg.remote.accept) {
+  if (inPlace) return null;
+  if (remote && cfg.remote.accept) {
     if (OPEN_REMOTE.test(loc)) return null;
     // Bare "Remote" is open; "Remote, Poland" / "Remote - US" is tied to that region.
     const rest = loc.replace(/\b(remote|fully|100%|work from home|wfh|first|only|friendly)\b/gi, '').replace(/[^a-z]/gi, '');
