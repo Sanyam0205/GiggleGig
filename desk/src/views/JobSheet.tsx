@@ -7,6 +7,9 @@ import { ResumeFrame } from '../parts/ResumeFrame';
 import { Markdown } from '../parts/Markdown';
 import { Eligibility } from '../parts/Notice';
 import { laneOf } from '../parts/lanes';
+import { placeOf } from '../parts/Classified';
+import { platformName } from '../parts/platform';
+import { agentName } from '../parts/DispatchLog';
 
 const MOVES = ['shortlisted', 'needs-referral', 'applied', 'referral-pending', 'referred', 'interviewing', 'offer', 'accepted', 'rejected', 'withdrawn', 'skipped'];
 const DIMS: [string, string][] = [['stack', 'Stack'], ['level', 'Level'], ['domain', 'Domain'], ['company', 'Company'], ['logistics', 'Logistics']];
@@ -46,12 +49,9 @@ export function JobSheet({ id, back }: { id: string; back: string }) {
       <div className="sheet">
         <div className="top">
           <div>
-            <div className="label muted">
-              <a href={`#/pipeline/${laneOf(job.status).key}`}>Pipeline · {laneOf(job.status).title}</a> · {job.status.replace(/-/g, ' ')} · <span className="mono">{job.id}</span>
-            </div>
             <h2>{job.title} — {job.company}</h2>
-            <div className="muted" style={{ fontSize: 13 }}>
-              {job.location ?? 'Location n/a'}{job.remote ? ' · remote' : ''}{pay ? ` · ${pay}` : ''} · found {ago(job.first_seen)} via {job.sources.join(', ')}
+            <div className="muted" style={{ fontSize: 13.5 }}>
+              {placeOf(job) ?? 'Location not stated'}{pay ? ` · ${pay}` : ''} · found {ago(job.first_seen)} via {[...new Set<string>(job.sources.map(platformName))].join(', ')} · <b>{laneOf(job.status).title}: {job.status.replace(/-/g, ' ')}</b>
             </div>
           </div>
           <span className="sp" />
@@ -61,10 +61,10 @@ export function JobSheet({ id, back }: { id: string; back: string }) {
         <div className="actions">
           {job.apply_url && <a className="btn ghost" href={job.apply_url} target="_blank" rel="noreferrer"><Icon name="open" size={16} />Posting</a>}
           {cvPdf && <a className="btn ghost" href={cvPdf} target="_blank" rel="noreferrer"><Icon name="doc" size={16} />CV PDF</a>}
-          <a className="btn ghost" href={`#/companies/${encodeURIComponent(job.company)}`}>All roles at {job.company}</a>
+          <a className="btn ghost" href={`#/find/${encodeURIComponent(job.company)}`}>All roles at {job.company}</a>
           <span className="sp" />
           <select className="field" value="" onChange={(e) => e.target.value && act('move', () => api.setStatus(id, e.target.value, 'set on desk'), `Moved to ${e.target.value.replace(/-/g, ' ')}.`)} aria-label="Move to stage">
-            <option value="">Move to…</option>
+            <option value="">Change status…</option>
             {MOVES.filter((m) => m !== job.status).map((m) => <option key={m} value={m}>{m.replace(/-/g, ' ')}</option>)}
           </select>
         </div>
@@ -72,10 +72,10 @@ export function JobSheet({ id, back }: { id: string; back: string }) {
         {!eng && job.status !== 'evaluating' && (
           <section className="tailor-box">
             <h3>Evaluate this role</h3>
-            <p className="muted small">{job.triage ? `Triage ${job.triage.verdict} · ${job.triage.score}/5 · ${job.triage.reason}` : 'Not triaged yet.'} The full A–G evaluation writes a report: requirement-by-requirement CV match, level strategy, comp, interview plan and posting legitimacy, scored 1–5.</p>
+            <p className="muted small">{job.triage ? `Quick review: ${job.triage.verdict.toLowerCase()}, ${job.triage.score} of 5. ${job.triage.reason}` : 'Not reviewed yet.'} A full evaluation writes a report: requirement-by-requirement CV match, level strategy, comp, interview plan and posting legitimacy, scored 1–5.</p>
             <div className="row-actions">
               {job.triage?.blocked && <textarea className="msg short" placeholder={job.triage.blocked} value={answer} onChange={(e) => setAnswer(e.target.value)} aria-label="Your answer" />}
-              <button className="btn frank" disabled={busy === 'eval' || (job.triage?.blocked && !answer.trim())} onClick={() => act('eval', () => api.evaluate(id, answer.trim() || undefined), 'Evaluating. It now sits in Pipeline → Being worked on; this sheet updates when the report lands.')}>{busy === 'eval' ? <span className="spin" /> : null}Evaluate (A–G)</button>
+              <button className="btn frank" disabled={busy === 'eval' || (job.triage?.blocked && !answer.trim())} onClick={() => act('eval', () => api.evaluate(id, answer.trim() || undefined), 'Evaluating: about 3 minutes. This sheet updates when the report lands.')}>{busy === 'eval' ? <span className="spin" /> : null}Evaluate</button>
               <span className="muted small">About 3–6 minutes.</span>
             </div>
           </section>
@@ -105,7 +105,7 @@ export function JobSheet({ id, back }: { id: string; back: string }) {
             <textarea className="msg short" placeholder="Optional instructions, e.g. lead with the LLM retrieval work; keep BT to one line; position for backend, not AI"
               value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Tailoring instructions" />
             <div className="row-actions">
-              <button className="btn frank" disabled={busy === 'tailor'} onClick={() => act('tailor', () => api.tailor(id, notes || undefined), 'Tailoring. It now sits in Pipeline → Being worked on, then Waiting for you on Today.')}>
+              <button className="btn frank" disabled={busy === 'tailor'} onClick={() => act('tailor', () => api.tailor(id, notes || undefined), 'Tailoring: about 6 minutes. The CV lands under Today → Waiting for you.')}>
                 {busy === 'tailor' ? <span className="spin" /> : null}{hasResume ? 'Re-tailor' : 'Tailor resume'}
               </button>
               <span className="muted small">Agents compare the role with the candidate profile, tailor a resume, check its claims, and prepare a one-page PDF. Usually 5–10 minutes.</span>
@@ -134,7 +134,7 @@ export function JobSheet({ id, back }: { id: string; back: string }) {
         <section>
           <h3>Warm paths at {job.company}</h3>
           {job.warmPaths.length === 0
-            ? <p className="muted small">No connections here yet. Import your LinkedIn connections on the Contacts tab, or run <span className="mono">/connection-request {job.company}</span>.</p>
+            ? <p className="muted small">No connections at {job.company} yet. Import your LinkedIn connections under Profile → Contacts to see warm paths here.</p>
             : job.warmPaths.slice(0, 6).map((c: any) => (
               <div key={c.id} className="li">
                 <span>{c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer">{c.name}</a> : c.name}<span className="sub block">{c.role ?? ''} · {c.relationship}</span></span>
@@ -173,7 +173,7 @@ export function JobSheet({ id, back }: { id: string; back: string }) {
         {job.runs.length > 0 && (
           <section>
             <h3>Agent runs</h3>
-            {job.runs.map((r: any) => <div key={r.id} className="li"><a href={`#/agents/${r.id}`}>{r.agent} · {r.status}</a><span className="mono">{ago(r.started_at)}</span></div>)}
+            {job.runs.map((r: any) => <div key={r.id} className="li"><a href={`#/agents/${r.id}`}>{agentName(r.agent)} · {r.status}</a><span className="mono">{ago(r.started_at)}</span></div>)}
           </section>
         )}
       </div>

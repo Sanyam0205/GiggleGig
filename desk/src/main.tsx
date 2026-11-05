@@ -1,7 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './themes/vacant.css';
 import { App } from './App';
-import { loadWorld } from './world';
+import { applyTheme } from './theme';
 
-loadWorld();
+applyTheme();
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

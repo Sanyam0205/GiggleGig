@@ -26,7 +26,12 @@ output/
 .vscode/
 *.log
 
-# Design-tool cache and generated mock-ups
+# Local-only notes: design system, product brief, hosting plan, old design sketches, design-tool cache.
+# (CLAUDE.md is NOT ignored: the agents read it at run time.)
+DESIGN.md
+PRODUCT.md
+PLAN.md
+design/
 .impeccable/
-.impeccable/hook.cache.json
-.impeccable/mocks/
+scripts/*bakeoff*.mjs
+data/bakeoff/

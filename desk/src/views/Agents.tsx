@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ago, duration, useLive, useStream, type RunEvent } from '../api';
 import { fmtClock } from '../parts/postal';
 import { useToast } from '../App';
+import { agentName, plainEvent } from '../parts/DispatchLog';
 
 export function Agents({ runId }: { runId?: number }) {
   const { data: runs } = useLive(() => api.runs(150), [], (m) => Boolean(m.runs));
-  const { data: candidate } = useLive(() => api.candidate(), [], (m) => Boolean(m.runs));
-  const { data: limits } = useLive(() => api.limits(), [], (m) => Boolean(m.runs));
   const selected = runId ?? runs?.[0]?.id;
   const [detail, setDetail] = useState<any>(null);
-  const [resumeBusy, setResumeBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const anyRunning = (runs ?? []).some((r) => r.status === 'running');
@@ -17,17 +15,6 @@ export function Agents({ runId }: { runId?: number }) {
     const r = id ? await api.stop(id) : await api.stopAll();
     toast(r.stopped ? `Stopped ${r.stopped} run${r.stopped > 1 ? 's' : ''}.` : 'Nothing was running.');
     if (id) setDetail((d: any) => d && { ...d, status: 'stopped' });
-  }
-  async function uploadResume(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setResumeBusy(true);
-    try {
-      await api.uploadResume(file);
-      toast('Resume intake started. The search begins as soon as the profile is built.');
-    } catch (err: any) { toast(err.message, true); }
-    finally { setResumeBusy(false); }
   }
 
   useEffect(() => { if (selected) api.run(selected).then(setDetail); }, [selected]);
@@ -47,25 +34,11 @@ export function Agents({ runId }: { runId?: number }) {
   return (
     <>
       <header className="head">
-        <h1>Agents</h1>
+        <h1>Agent register</h1>
         <span className="meta">Every run, step by step. Last 24 h: {(runs ?? []).filter((r) => r.status === 'failed').length} failed · ≈${spend.toFixed(2)} of metered usage at API prices</span>
         <span className="sp" />
         {anyRunning && <button className="btn reject" onClick={() => stop()}>Stop all agents</button>}
       </header>
-      {limits && <UsagePanel l={limits} />}
-      <section className="source" style={{ marginBottom: 18 }}>
-        <div className="source-head">
-          <div><h3>Start with a candidate resume</h3><p className="muted">Upload PDF, DOCX, TXT, or Markdown (up to 5 MB). A setup agent rebuilds the candidate context from this file only, then the search starts for that candidate.</p></div>
-          <label className={`btn frank ${resumeBusy ? 'disabled' : ''}`}>
-            {resumeBusy ? <span className="spin" /> : null}Choose resume
-            <input type="file" accept=".pdf,.docx,.txt,.md" disabled={resumeBusy} onChange={uploadResume} hidden />
-          </label>
-        </div>
-        {candidate?.state === 'none' && <p className="notice small" style={{ margin: '8px 0 0' }}>No candidate yet. Upload a resume to start: nothing is searched or scored until a profile exists.</p>}
-        {candidate?.state === 'intake' && <p className="notice small" style={{ margin: '8px 0 0' }}>Building the candidate profile. The search is paused until it is ready.</p>}
-        {candidate?.state === 'failed' && <p className="notice small" style={{ margin: '8px 0 0' }}>Resume intake failed: {candidate.error}. The search stays paused; upload the resume again.</p>}
-        <p className="muted small" style={{ margin: '8px 0 0' }}>Starting a new candidate clears the current candidate’s jobs, application statuses, contacts, interviews, run history, and generated files. Your search settings remain.</p>
-      </section>
       <div className="split">
         <table className="ledger">
           <thead><tr><th>Agent</th><th>Status</th><th className="r">Took</th><th className="r hide-sm">Started</th></tr></thead>
@@ -73,7 +46,7 @@ export function Agents({ runId }: { runId?: number }) {
             {(runs ?? []).map((r) => (
               <tr key={r.id} className="click" aria-selected={r.id === selected} onClick={() => { window.location.hash = `#/agents/${r.id}`; }}
                 style={r.id === selected ? { background: 'var(--paper)' } : undefined}>
-                <td><div className="t">{r.agent}</div><div className="sub">{r.company ?? r.model ?? ''}</div></td>
+                <td><div className="t">{agentName(r.agent)}</div><div className="sub">{r.company ?? r.model ?? ''}</div></td>
                 <td><span className={`tag ${r.status === 'failed' ? 'red' : r.status === 'running' ? 'violet' : 'ink'}`}>{r.status}</span></td>
                 <td className="r mono sub">{r.status === 'running' ? ago(r.started_at).replace(' ago', '') : duration(r.duration_ms)}</td>
                 <td className="r mono sub hide-sm">{fmtClock(r.started_at)}</td>
@@ -85,7 +58,7 @@ export function Agents({ runId }: { runId?: number }) {
           {detail ? (
             <>
               <h2 className="section" style={{ marginBottom: 6 }}>
-                {detail.agent}<span className="c">{detail.model ?? ''} · {detail.turns ?? '—'} turns · {detail.cost_usd != null ? `$${detail.cost_usd.toFixed(3)}` : ''}</span>
+                {agentName(detail.agent)}<span className="c">{detail.model ?? ''} · {detail.turns ?? '—'} turns · {detail.cost_usd != null ? `$${detail.cost_usd.toFixed(3)}` : ''}</span>
                 {detail.status === 'running' && <button className="btn reject small" style={{ marginLeft: 'auto' }} onClick={() => stop(detail.id)}>Stop this run</button>}
               </h2>
               {detail.summary && <p className="muted" style={{ marginBottom: 10 }}>{detail.summary}</p>}
@@ -95,8 +68,8 @@ export function Agents({ runId }: { runId?: number }) {
                 {detail.events.map((e: RunEvent) => (
                   <div key={e.id} className={`e ${e.type}`}>
                     <span className="muted">{fmtClock(e.ts)}</span>
-                    <span className="ty">{e.type}</span>
-                    <span className="tx">{e.text}</span>
+                    <span className="ty">{({ tool: 'step', text: 'said', log: 'log', error: 'error' } as Record<string, string>)[e.type] ?? e.type}</span>
+                    <span className="tx">{(() => { const p = plainEvent(e.type, e.text); return p.verb ? <><b>{p.verb}</b>{p.rest ? ` · ${p.rest}` : ''}</> : p.rest; })()}</span>
                   </div>
                 ))}
                 <div ref={endRef} />
@@ -109,29 +82,3 @@ export function Agents({ runId }: { runId?: number }) {
   );
 }
 
-const pct = (n?: number) => (n == null ? '—' : `${Math.round(n * 100)}%`);
-const when = (s?: number) => (s ? new Date(s * 1000).toLocaleString('en-IN', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '');
-
-/** Plan limits and quotas, so a run is never started blind. */
-function UsagePanel({ l }: { l: any }) {
-  const w = l.claude?.windows ?? {};
-  const row = (name: string, v: string, note: string, warn = false) => (
-    <tr><td><div className="t">{name}</div></td><td className={`r num${warn ? ' err' : ''}`}>{v}</td><td className="sub">{note}</td></tr>
-  );
-  return (
-    <section className="source" style={{ marginBottom: 18 }}>
-      <h3>Usage and limits</h3>
-      <table className="ledger compact" style={{ marginTop: 6 }}>
-        <tbody>
-          {row('Claude session (5 h)', pct(w.five_hour?.utilization), w.five_hour ? `resets ${when(w.five_hour.resetsAt)}` : 'shown after the first agent run', (w.five_hour?.utilization ?? 0) >= 0.9)}
-          {row('Claude week (7 days)', pct(w.seven_day?.utilization), w.seven_day ? `resets ${when(w.seven_day.resetsAt)}` : '', (w.seven_day?.utilization ?? 0) >= 0.9)}
-          {l.claude?.status === 'rejected' && row('Claude', 'limit hit', 'new runs are refused until it resets', true)}
-          {row('Codex', l.codex?.status === 'rejected' ? 'limit hit' : l.codex ? 'ok' : '—', l.codex?.message ?? 'used only by roles routed to Codex', l.codex?.status === 'rejected')}
-          {row('JSearch (month)', `${l.jsearch.used}/${l.jsearch.limit}`, 'free-tier requests; stops at the limit', l.jsearch.used >= l.jsearch.limit)}
-          {row('Firecrawl calls today', String(l.firecrawl.callsToday), 'each uses Firecrawl credits')}
-          {row('Agent runs today', String(l.runsToday.n ?? 0), `${l.runsToday.failed ?? 0} failed · ${l.runsToday.running ?? 0} running${l.runsToday.usd ? ` · ≈$${l.runsToday.usd} at API prices` : ''}`)}
-        </tbody>
-      </table>
-    </section>
-  );
-}

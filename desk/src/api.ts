@@ -17,6 +17,7 @@ export interface MatchRow extends JobRow {
   score5?: number | null; decision?: string | null; confidence?: string | null; legitimacy?: string | null;
   archetype?: string | null; report_num?: string | null; engine_status?: string | null;
   triage?: { verdict: string; score: number; reason: string; evalFailed?: number; blocked?: string } | null;
+  jd_status?: string | null; jd_source?: string | null;
   advertisedComp?: string | null; hardStops?: string[]; nextAction?: string | null;
   evidence?: string | null;
   dimensions?: Record<string, number> | null;
@@ -90,14 +91,17 @@ export const api = {
   importContacts: (csv: string) => req<{ added: number; updated: number; total: number }>('/api/contacts/import', { method: 'POST', body: JSON.stringify({ csv }) }),
   alerts: () => req<AlertsInfo>('/api/alerts'),
   testAlert: () => req<{ ok: boolean }>('/api/alerts/test', { method: 'POST' }),
+  rescreen: (id: string) => req(`/api/jobs/${id}/rescreen`, { method: 'POST' }),
   evaluateMany: (ids: string[]) => req('/api/evaluate', { method: 'POST', body: JSON.stringify({ ids }) }),
   limits: () => req<any>('/api/limits'),
+  backup: () => req<{ db: string; profile: string | null }>('/api/backup', { method: 'POST' }),
+  exportApplications: () => req<{ count: number; csv: string }>('/api/export', { method: 'POST' }),
   tailorMany: (ids: string[]) => req(`/api/tailor`, { method: 'POST', body: JSON.stringify({ ids }) }),
   matches: (params: { minFit?: number; platform?: string; q?: string; status?: string }) =>
     req<MatchRow[]>(`/api/jobs?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '').map(([k, v]) => [k, String(v)]))}`),
   sources: () => req<SourcesReport>('/api/sources'),
   settings: (patch: object) => req<any>('/api/settings', { method: 'POST', body: JSON.stringify(patch) }),
-  uploadResume: async (file: File) => {
+  uploadResume: async (file: File, mode: 'update' | 'new-candidate' = 'update', confirm?: string) => {
     const data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('Could not read the selected resume.'));
@@ -105,7 +109,7 @@ export const api = {
       reader.readAsDataURL(file);
     });
     return req<{ started?: string; already?: boolean }>('/api/onboarding/resume', {
-      method: 'POST', body: JSON.stringify({ filename: file.name, data, replaceCandidate: true }),
+      method: 'POST', body: JSON.stringify({ filename: file.name, data, mode, confirm }),
     });
   },
   scoutOne: (key: string) => req(`/api/run/scout/${key}`, { method: 'POST' }),
@@ -174,17 +178,24 @@ export function ago(s: string | null | undefined) {
 }
 
 /** ₹12–16 LPA for INR, $90k–120k for USD; null when nothing is known. */
+/** Posted pay as a reader would say it, or null when the figures can't be trusted (a malformed range prints nothing, not nonsense). */
 export function formatPay(min?: number | null, max?: number | null, currency?: string | null) {
-  if (!min && !max) return null;
+  let [lo, hi] = [min && min > 0 ? min : null, max && max > 0 ? max : null];
+  if (!lo && !hi) return null;
+  if (lo && hi && lo > hi) [lo, hi] = [hi, lo];
   const cur = (currency ?? 'INR').toUpperCase();
+  const range = (sym: string, f: (v: number) => string, unit = '') =>
+    lo && hi && hi !== lo ? `${sym}${f(lo)}–${f(hi)}${unit}` : lo ? `${sym}${f(lo)}${unit}${hi ? '' : '+'}` : `up to ${sym}${f(hi!)}${unit}`;
   if (cur === 'INR') {
-    const lpa = (v?: number | null) => (v ? (v >= 100000 ? +(v / 100000).toFixed(1) : v) : null);
-    const [a, b] = [lpa(min), lpa(max)];
-    return `₹${a ?? '?'}${b && b !== a ? `–${b}` : ''} LPA`;
+    const top = hi ?? lo!;
+    if (top < 10000 || top > 50000000) return null;            // under ₹10k or over ₹5 crore: a parsing slip, not a salary
+    if (top < 100000) return `${range('₹', (v) => v.toLocaleString('en-IN'))} (period not stated)`; // too small for a year
+    return range('₹', (v) => String(+(v / 100000).toFixed(1)), ' LPA');
   }
+  const top = hi ?? lo!;
+  if (top < 1000 || top > 1000000) return null;
   const sym = cur === 'USD' ? '$' : cur === 'EUR' ? '€' : cur === 'GBP' ? '£' : `${cur} `;
-  const k = (v?: number | null) => (v ? (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)) : '?');
-  return `${sym}${k(min)}${max && max !== min ? `–${k(max)}` : ''}`;
+  return range(sym, (v) => `${Math.round(v / 1000)}k`);
 }
 
 export function duration(ms: number | null) {

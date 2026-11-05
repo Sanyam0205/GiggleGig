@@ -37,6 +37,6 @@ export function engineAgent(opts: Omit<AgentOptions, 'cwd' | 'env'> & { env?: Re
     tools: opts.tools ?? ENGINE_TOOLS,
     strictMcp: opts.strictMcp ?? true,
     writableDirs: [ENGINE_DATA],
-    appendSystem: [opts.appendSystem, 'You are running unattended under the Job Search OS scheduler (an unattended run per modes/_shared.md): do not ask questions, do not check for updates, never submit/send anything, and finish the mode completely.'].filter(Boolean).join('\n\n'),
+    appendSystem: [opts.appendSystem, 'You are running unattended under the GiggleGig scheduler (an unattended run per modes/_shared.md): do not ask questions, do not check for updates, never submit/send anything, and finish the mode completely.'].filter(Boolean).join('\n\n'),
   });
 }

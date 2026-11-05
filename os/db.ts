@@ -134,7 +134,13 @@ for (const sql of ['ALTER TABLE queue ADD COLUMN due_at TEXT', 'ALTER TABLE runs
   'CREATE INDEX IF NOT EXISTS jobs_report ON jobs(report_num)',
   'ALTER TABLE runs ADD COLUMN provider TEXT',
   // The report number an evaluation has reserved but not finished, so a tracker sync never mistakes it for an outside report.
-  'ALTER TABLE jobs ADD COLUMN pending_report TEXT']) {
+  'ALTER TABLE jobs ADD COLUMN pending_report TEXT',
+  // One key per posting from its link (a board's job id where there is one), so the same posting never shows twice.
+  'ALTER TABLE jobs ADD COLUMN url_key TEXT',
+  'CREATE INDEX IF NOT EXISTS jobs_url_key ON jobs(url_key)',
+  // Whether the full job description was found before review: full | partial | missing, and where it came from.
+  'ALTER TABLE jobs ADD COLUMN jd_status TEXT',
+  'ALTER TABLE jobs ADD COLUMN jd_source TEXT']) {
   try { db.exec(sql); } catch { /* already migrated */ }
 }
 

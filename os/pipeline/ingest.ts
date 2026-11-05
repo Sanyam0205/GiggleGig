@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { db } from '../db.ts';
 import type { SearchConfig } from '../config.ts';
-import type { RawJob } from '../sources/types.ts';
+import { isJobLink, type RawJob } from '../sources/types.ts';
 
 // When two sources report the same job, trust the one closest to the company.
 const SOURCE_RANK = ['boards', 'greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters', 'wellfound', 'ycombinator', 'cutshort', 'instahyre', 'himalayas', 'weworkremotely', 'remoterocketship', 'jsearch', 'jobspy', 'adzuna', 'jooble', 'remoteok', 'remotive', 'hackernews', 'gmail', 'web'];
@@ -11,7 +11,35 @@ const rank = (s: string) => {
 };
 
 export function normCompany(s: string) {
-  return s.toLowerCase().replace(/[,.]|\b(inc|llc|ltd|corp|corporation|co|gmbh|technologies|hq)\b/g, '').replace(/\s+/g, ' ').trim();
+  return s.toLowerCase()
+    .replace(/\(.*?\)|\[.*?\]/g, ' ')                  // "Return Rabbit (by Better)", "Acme (YC W24)"
+    .replace(/\s+by\s+.+$/, '')                          // "X by Y"
+    .replace(/[,.]|\b(inc|llc|ltd|pvt|private|limited|corp|corporation|co|gmbh|technologies|hq|india)\b/g, '')
+    .replace(/\s+/g, ' ').trim();
+}
+
+// Parameters that only say where a click came from; two links differing in these are the same posting.
+const TRACKING = /^(utm_.*|ref|refid|source|src|gh_src|trk|trackingid|lever-source|lever-origin|via|from|campaign|share|origin)$/i;
+
+/** One key per posting whatever site or tracking link it arrived through: a board's job id where it has one. */
+export function urlKey(u?: string | null): string | null {
+  if (!u) return null;
+  let x: URL;
+  try { x = new URL(u); } catch { return null; }
+  const host = x.hostname.toLowerCase().replace(/^(www|m|[a-z]{2})\./, '');
+  const path = decodeURIComponent(x.pathname);
+  let m: RegExpExecArray | null;
+  if (host.endsWith('linkedin.com')) {
+    const id = /\/jobs\/view\/(?:[^/]*?-)?(\d{6,})/.exec(path)?.[1] ?? x.searchParams.get('currentJobId');
+    if (id) return `linkedin:${id}`;
+  }
+  if (host.endsWith('wellfound.com') && (m = /\/jobs\/(\d+)/.exec(path))) return `wellfound:${m[1]}`;
+  if (host.endsWith('lever.co') && (m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(path))) return `lever:${m[1].toLowerCase()}`;
+  if (host.endsWith('ashbyhq.com') && (m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(path))) return `ashby:${m[1].toLowerCase()}`;
+  const gh = x.searchParams.get('gh_jid') ?? (host.endsWith('greenhouse.io') ? /\/jobs\/(\d+)/.exec(path)?.[1] : null);
+  if (gh) return `greenhouse:${gh}`;
+  const rest = [...x.searchParams.entries()].filter(([k]) => !TRACKING.test(k)).sort(([a], [b]) => a.localeCompare(b));
+  return `${host}${path.replace(/\/+$/, '').toLowerCase()}${rest.length ? '?' + rest.map(([k, v]) => `${k}=${v}`).join('&') : ''}`;
 }
 
 function normTitle(s: string) {
@@ -78,11 +106,12 @@ export interface IngestStats { seen: number; inserted: number; merged: number; f
 export function ingest(jobs: RawJob[], cfg: SearchConfig): IngestStats {
   const stats: IngestStats = { seen: jobs.length, inserted: 0, merged: 0, filtered: 0 };
   const find = db.prepare('SELECT id, source, sources, description, apply_url, url, status FROM jobs WHERE dedupe_key = ?');
+  const findUrl = db.prepare('SELECT id, source, sources, description, apply_url, url, status FROM jobs WHERE url_key = ?');
   const reopen = db.prepare(`UPDATE jobs SET status = 'sourced', filter_reason = NULL, location = ?, remote = ? WHERE id = ?`);
   const insert = db.prepare(`INSERT INTO jobs (id, dedupe_key, source, sources, company, title, location, remote, url, apply_url,
-      description, salary_min, salary_max, currency, posted_at, status, filter_reason)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const merge = db.prepare(`UPDATE jobs SET last_seen = datetime('now'), sources = ?, source = ?, url = ?, apply_url = ?,
+      description, salary_min, salary_max, currency, posted_at, status, filter_reason, url_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const merge = db.prepare(`UPDATE jobs SET last_seen = datetime('now'), url_key = COALESCE(url_key, ?), sources = ?, source = ?, url = ?, apply_url = ?,
       description = ?, salary_min = COALESCE(salary_min, ?), salary_max = COALESCE(salary_max, ?), currency = COALESCE(currency, ?),
       posted_at = COALESCE(posted_at, ?) WHERE id = ?`);
 
@@ -90,14 +119,20 @@ export function ingest(jobs: RawJob[], cfg: SearchConfig): IngestStats {
   try {
     for (const j of jobs) {
       if (!j.company || !j.title) continue;
+      // A link that cannot be a posting (a video, a profile) is dropped; with no usable link left there is nothing to apply to.
+      if (j.applyUrl && !isJobLink(j.applyUrl)) j.applyUrl = undefined;
+      if (j.url && !isJobLink(j.url)) j.url = undefined;
+      if (!j.url && !j.applyUrl) { stats.filtered++; continue; }
       const key = dedupeKey(j);
-      const existing = find.get(key) as any;
+      const keys = [...new Set([urlKey(j.applyUrl), urlKey(j.url)].filter(Boolean) as string[])];
+      // The same posting under two company spellings ("Return" / "Return Rabbit (by Better)") shares its link.
+      const existing = (keys.map((k) => findUrl.get(k)).find(Boolean) ?? find.get(key)) as any;
       if (existing) {
         const sources = new Set<string>(JSON.parse(existing.sources));
         sources.add(j.source);
         const better = rank(j.source) < rank(existing.source);
         const desc = (j.description?.length ?? 0) > (existing.description?.length ?? 0) ? j.description : existing.description;
-        merge.run(JSON.stringify([...sources]), better ? j.source : existing.source,
+        merge.run(keys[0] ?? null, JSON.stringify([...sources]), better ? j.source : existing.source,
           better ? j.url ?? existing.url : existing.url ?? j.url ?? null,
           better ? j.applyUrl ?? existing.apply_url : existing.apply_url ?? j.applyUrl ?? null,
           desc ?? null, j.salaryMin ?? null, j.salaryMax ?? null, j.currency ?? null, j.postedAt ?? null, existing.id);
@@ -117,7 +152,7 @@ export function ingest(jobs: RawJob[], cfg: SearchConfig): IngestStats {
       insert.run(id, key, j.source, JSON.stringify([j.source]), j.company.trim(), j.title.trim(), j.location ?? null,
         j.remote ? 1 : 0, j.url ?? null, j.applyUrl ?? j.url ?? null, j.description ?? null,
         j.salaryMin ? Math.round(j.salaryMin) : null, j.salaryMax ? Math.round(j.salaryMax) : null, j.currency ?? null,
-        j.postedAt ?? null, reason ? 'filtered' : 'sourced', reason);
+        j.postedAt ?? null, reason ? 'filtered' : 'sourced', reason, keys[0] ?? null);
     }
     db.exec('COMMIT');
   } catch (e) {

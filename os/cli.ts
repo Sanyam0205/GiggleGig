@@ -123,6 +123,30 @@ const commands: Record<string, { help: string; run: () => unknown | Promise<unkn
     help: 'watch — every-30-minutes job: inbox watcher + due follow-ups',
     run: async () => ({ inbox: await (await import('./pipeline/inbox.ts')).watchInbox(), followUps: promoteDue() }),
   },
+  backup: {
+    help: 'backup [--list] — snapshot the job database and profile into data/backups/ (newest 10 kept)',
+    run: async () => { const b = await import('./backup.ts'); return has('list') ? b.listBackups() : b.backup('manual'); },
+  },
+  'restore-backup': {
+    help: 'restore-backup <file> — put a backup back (the current state is backed up first; stop the desk for a database restore)',
+    run: async () => (await import('./backup.ts')).restoreBackup(args[0]),
+  },
+  export: {
+    help: 'export — every application as CSV and Markdown in data/exports/',
+    run: async () => (await import('./backup.ts')).exportApplications(),
+  },
+  dedupe: {
+    help: 'dedupe — merge postings that arrived twice (backs up first; the copy you acted on wins)',
+    run: async () => (await import('./pipeline/dedupe.ts')).dedupe(),
+  },
+  rescreen: {
+    help: 'rescreen [job-id …] — fetch full job descriptions and review again: named roles, or every role first reviewed on a partial description',
+    run: async () => (await import('./pipeline/rescreen.ts')).rescreen(args),
+  },
+  'track-applied': {
+    help: 'track-applied — add applied roles that have no evaluation report to the application tracker',
+    run: async () => (await import('./engine/sync.ts')).trackAllApplied(),
+  },
   'restore-profile': {
     help: 'restore-profile [archive-folder] — put back the profile a resume upload archived (newest by default)',
     run: async () => {
@@ -134,7 +158,7 @@ const commands: Record<string, { help: string; run: () => unknown | Promise<unkn
   },
   intake: {
     help: 'intake <resume file> — build the candidate profile from a resume, then start the search for it',
-    run: async () => (await import('./pipeline/intake.ts')).intake(args[0]),
+    run: async () => { const update = has('update'); return (await import('./pipeline/intake.ts')).intake(args[0], update); },
   },
   company: { help: 'company "<name>" — find and score every feasible role at one company', run: async () => (await import('./pipeline/company.ts')).searchCompany(args.join(' ')) },
   contacts: {

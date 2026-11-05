@@ -1,8 +1,8 @@
 // Tracker ↔ desk. career-ops owns statuses (data/applications.md, written only through its scripts);
 // the desk's job rows mirror them, and desk status changes are written back through set-status.mjs.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { db, statusHooks } from '../db.ts';
+import { db, kvGet, kvSet, statusHooks } from '../db.ts';
 import { ENGINE_DATA, ENGINE_FILES } from './paths.ts';
 import { engineScript } from './run.ts';
 import { applyReport, bucketFor, parseReport, reportPath } from './reports.ts';
@@ -72,7 +72,33 @@ export function syncFromTracker() {
 }
 
 // Desk → tracker. Registered on import: every setJobStatus for a job with a report also moves the tracker row.
+/** An applied role with no evaluation report still gets a tracker row: a plain-text second copy of what you applied to. */
+export async function trackApplied(jobId: string) {
+  if (kvGet(`tracked:${jobId}`)) return false;
+  const j = db.prepare('SELECT company, title, apply_url, url, report_num FROM jobs WHERE id = ?').get(jobId) as any;
+  if (!j || j.report_num) return false;
+  const r = await engineScript('reserve-report-num.mjs');
+  const num = /(\d{3,})/.exec(r.stdout)?.[1];
+  if (!num) return false;
+  const cell = (s: unknown) => String(s ?? '').replace(/[\t\r\n|]+/g, ' ').trim();
+  mkdirSync(ENGINE_FILES.additions, { recursive: true });
+  writeFileSync(join(ENGINE_FILES.additions, `os-applied-${jobId}.tsv`), [num, new Date().toISOString().slice(0, 10), cell(j.company), cell(j.title),
+    'Applied', 'N/A', '❌', '-', 'Applied from GiggleGig (no evaluation report)', cell(j.apply_url ?? j.url)].join('\t') + '\n');
+  const merged = await engineScript('merge-tracker.mjs');
+  await engineScript('reserve-report-num.mjs', ['--release', num]);
+  if (merged.code === 0) kvSet(`tracked:${jobId}`, num);
+  return merged.code === 0;
+}
+
+export async function trackAllApplied() {
+  const ids = (db.prepare(`SELECT id FROM jobs WHERE report_num IS NULL AND status IN ('applied','referral-pending','referred','interviewing','offer','accepted')`).all() as any[]).map((r) => r.id);
+  let added = 0;
+  for (const id of ids) if (await trackApplied(id)) added++;
+  return { applied: ids.length, added };
+}
+
 statusHooks.push((jobId, status, note) => {
+  if (status === 'applied') void trackApplied(jobId);
   const target = TO_ENGINE[status];
   if (!target) return;
   const job = db.prepare('SELECT report_num, engine_status FROM jobs WHERE id = ?').get(jobId) as any;

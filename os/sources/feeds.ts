@@ -1,5 +1,5 @@
 // Open job feeds: RemoteOK, Remotive, and the monthly HN "Who is hiring?" thread.
-import { getJson, htmlToText, toIso, type Log, type RawJob } from './types.ts';
+import { getJson, htmlToText, isJobLink, toIso, type Log, type RawJob } from './types.ts';
 
 export async function fetchRemoteOk(log: Log): Promise<RawJob[]> {
   const rows = await getJson<any[]>('https://remoteok.com/api');
@@ -54,7 +54,9 @@ export async function fetchHackerNews(log: Log): Promise<RawJob[]> {
     const parts = head.split('|').map((s) => s.trim()).filter(Boolean);
     if (parts.length < 2) continue;
     const title = parts.find((p) => /engineer|developer|swe|sde|stack|backend|frontend/i.test(p)) ?? parts[1];
-    const link = /href="([^"]+)"/.exec(c.text)?.[1]?.replace(/&#x2F;/g, '/');
+    // A comment links many things (demos, videos, the founder's GitHub); the apply link is the first one that can be a job page.
+    const links = [...c.text.matchAll(/href="([^"]+)"/g)].map((m: RegExpMatchArray) => m[1].replace(/&#x2F;/g, '/').replace(/&amp;/g, '&'));
+    const link = links.find((l) => isJobLink(l) && !/news\.ycombinator\.com/.test(l));
     jobs.push({
       source: 'hackernews',
       company: parts[0].replace(/\(.*?\)/g, '').trim(),

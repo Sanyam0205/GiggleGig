@@ -9,13 +9,14 @@ internet or treat the LAN token as account authentication.
 ## Current workflow
 
 1. Start the desk with `npm run desk` and open the localhost URL it prints. The desk can also print a tokenized LAN URL.
-2. On **Agents**, upload a candidate resume as PDF, DOCX, TXT, or Markdown (up to 5 MB). DOCX text is extracted locally.
-3. Resume intake clears the active candidate's job tracker, application queue, contacts, interviews, run history, and
-   generated job files. The previous candidate's profile moves to `data/previous-candidate/`. It then runs the `setup-context` skill to rebuild
+2. On **Profile**, upload a candidate resume as PDF, DOCX, TXT, or Markdown (up to 5 MB). DOCX text is extracted locally.
+3. **Update resume** rebuilds the profile and keeps every job, application, contact and interview. **Start a new candidate**
+   (typed confirmation) also clears the job tracker, queue, contacts, interviews, run history and generated job files. Both take
+   a backup in `data/backups/` first, and the previous profile moves to `data/previous-candidate/`. It then runs the `setup-context` skill to rebuild
    candidate context from the new resume and checks the result; search and scoring stand down until that passes.
 4. Nothing runs on its own. The user presses Search (scan + quick review), picks roles to evaluate, then tailors CVs for the ones
    they choose. The candidate's own rules live in `config/search.json` → `preferences` and `remote`; they survive a new resume. The app keeps one active candidate profile at a time; a new intake replaces the prior profile.
-5. Use **Today**, **Matches**, **Pipeline**, and **Agents** to review work. Approvals are human-controlled. The app drafts
+5. Use **Today**, **Find**, **Review**, **Applications** and **Profile** to review work. Approvals are human-controlled. The app drafts
    application materials and messages; it does not submit applications or send messages automatically.
 
 The local SQLite database and candidate files live on this machine. Keep backups local and protect the computer account.

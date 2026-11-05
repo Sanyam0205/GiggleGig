@@ -27,7 +27,7 @@ async function problemWith(since: number): Promise<string | null> {
   return null;
 }
 
-export async function intake(file: string) {
+export async function intake(file: string, update = false) {
   const run = startRun('intake');
   setCandidateState('intake');
   const since = Date.now();
@@ -38,7 +38,9 @@ export async function intake(file: string) {
     return { ok: false, error: why };
   };
 
-  const r = await runSkill('setup-context', file);
+  const r = await runSkill('setup-context', update
+    ? `${file}\n\nThis is an updated resume for the same candidate: rebuild the profile from it, but keep context/target-companies.json and the answers in context/qa-master.md that the resume does not contradict.`
+    : file);
   if (!r.ok) return fail(r.error ?? 'the setup agent failed');
   const problem = await problemWith(since);
   if (problem) return fail(problem);

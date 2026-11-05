@@ -4,7 +4,6 @@ import { useToast } from '../App';
 import { TailorMode } from '../parts/TailorMode';
 import { AlertsPanel } from '../parts/AlertsPanel';
 import { EnginePanel } from '../parts/EnginePanel';
-import { WORLDS, getWorld, setWorld } from '../world';
 
 const GROUPS: { key: string; setting: string; run: string; title: string; note: (g: any) => string }[] = [
   { key: 'jobspy', setting: 'jobspy', run: 'jobspy', title: 'Job boards', note: (g) => g.python ? `Searches ${g.locations?.join(', ')} for your queries, last 48 h` : 'Needs Python 3.10+ with python-jobspy in .venv' },
@@ -24,7 +23,7 @@ const GROUPS: { key: string; setting: string; run: string; title: string; note: 
   { key: 'web', setting: 'webSearch', run: 'web', title: 'Open web search', note: () => 'An agent searches ATS pages, Wellfound and career sites the other scouts miss, and adds boards it discovers' },
 ];
 
-export function Sources() {
+export function Sources({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast();
   const { data, refresh } = useLive(api.sources, [], (m) => Boolean(m.jobsChanged || m.runs));
   const [busy, setBusy] = useState<string | null>(null);
@@ -53,7 +52,7 @@ export function Sources() {
   return (
     <>
       <header className="head">
-        <h1>Sources</h1>
+        {!embedded && <h1>Sources</h1>}
         <span className="meta">
           {totals.found.toLocaleString('en-IN')} postings found · {totals.passed} passed the gate · {totals.matched} matched
           {data.lastScout ? ` · last scout ${ago(data.lastScout.ended_at ?? data.lastScout.started_at)}` : ' · never scouted'}
@@ -64,7 +63,7 @@ export function Sources() {
         </button>
       </header>
 
-      <EnginePanel />
+      {!embedded && <EnginePanel />}
 
       <section className="automation">
         <h2 className="section">Automation</h2>
@@ -120,20 +119,6 @@ export function Sources() {
         );
       })}
 
-      <section className="source">
-        <div className="source-head">
-          <div>
-            <h3>Desk look</h3>
-            <p className="muted">Stored in this browser only. Speed Post is kept as the backup design.</p>
-          </div>
-          <span className="sp" />
-          <div className="mode" role="radiogroup" aria-label="Desk look">
-            {WORLDS.map((w) => (
-              <button key={w.id} role="radio" aria-checked={getWorld() === w.id} title={w.note} onClick={() => getWorld() !== w.id && setWorld(w.id)}>{w.name}</button>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {data.lastScout && (
         <section className="source">

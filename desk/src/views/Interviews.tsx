@@ -5,14 +5,16 @@ const TYPE_LABEL: Record<string, string> = {
   behavioral: 'Behavioral', debugging: 'Debugging', 'culture-motivation': 'Motivation', 'hr-logistics': 'HR',
 };
 
-export function Interviews() {
+export function Interviews({ embedded = false }: { embedded?: boolean }) {
   const { data } = useLive(api.interviews, [], () => false);
   return (
     <>
-      <header className="head">
-        <h1>Interviews</h1>
-        <span className="meta">Scheduled rounds, prep, and where your answers lose points.</span>
-      </header>
+      {!embedded && (
+        <header className="head">
+          <h1>Interviews</h1>
+          <span className="meta">Scheduled rounds, prep, and where your answers lose points.</span>
+        </header>
+      )}
       <div className="strip" style={{ marginTop: 0 }}>
         <div className="box">
           <h3>Rounds</h3>

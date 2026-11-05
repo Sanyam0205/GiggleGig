@@ -21,7 +21,8 @@ import { ENGINE_DATA } from './engine/paths.ts';
 import { pdfFor } from './engine/tailor.ts';
 import { bucketFor } from './engine/reports.ts';
 import { engineScript } from './engine/run.ts';
-import { resetCandidateWorkspace } from './reset.ts';
+import { resetCandidateWorkspace, resetProfile } from './reset.ts';
+import { backup, exportApplications, listBackups } from './backup.ts';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -44,7 +45,7 @@ function authorized(req: IncomingMessage, url: URL) {
 
 function cleanBrand(value: unknown) {
   return JSON.stringify(value).replace(/career[ -]?ops(?: engine)?/gi, 'GiggleGig')
-    .replace(/Job Search OS/gi, 'GiggleGig').replace(/Placement Desk/gi, 'GiggleGig');
+    .replace(/GiggleGig/gi, 'GiggleGig').replace(/Placement Desk/gi, 'GiggleGig');
 }
 
 const json = (res: ServerResponse, body: unknown, status = 200) => {
@@ -345,7 +346,8 @@ function today() {
     newMatches: (() => {
       const warm = warmCounts();
       return (db.prepare(`SELECT id, company, title, location, remote, fit_score, fit, status, sources, first_seen, apply_url,
-        salary_min, salary_max, currency, report_num, score5, decision, confidence, legitimacy, archetype, summary, triage, engine_status FROM jobs WHERE status IN ('shortlisted','needs-referral')
+        salary_min, salary_max, currency, report_num, score5, decision, confidence, legitimacy, archetype, summary, triage, engine_status, jd_status, jd_source FROM jobs WHERE status IN ('shortlisted','needs-referral')
+        OR (status = 'sourced' AND json_extract(triage, '$.verdict') = 'PASS')
         ORDER BY first_seen DESC, fit_score DESC LIMIT 12`).all() as any[]).map((j) => {
         return { ...decorate(j), warm: warm.get(normCompany(j.company)) ?? 0 };
       });
@@ -353,7 +355,7 @@ function today() {
     recent: (() => {
       const warm = warmCounts();
       return (db.prepare(`SELECT id, company, title, location, remote, fit_score, fit, status, sources, first_seen, apply_url,
-        salary_min, salary_max, currency, updated_at, report_num, score5, decision, confidence, legitimacy, archetype, summary, triage, engine_status FROM jobs WHERE status IN ('evaluating','tailoring')
+        salary_min, salary_max, currency, updated_at, report_num, score5, decision, confidence, legitimacy, archetype, summary, triage, engine_status, jd_status, jd_source FROM jobs WHERE status IN ('evaluating','tailoring')
         OR (updated_at >= datetime('now', '-1 day') AND status NOT IN ('sourced','filtered'))
         ORDER BY status IN ('evaluating','tailoring') DESC, updated_at DESC LIMIT 20`).all() as any[]).map((j) => {
         return { ...decorate(j), warm: warm.get(normCompany(j.company)) ?? 0 };
@@ -463,7 +465,7 @@ const routes: [string, RegExp, Handler][] = [
     if (p.get('company')) { where.push('company LIKE ?'); args.push(`%${p.get('company')}%`); }
     const warm = warmCounts();
     return db.prepare(`SELECT id, company, title, location, remote, status, fit_score, fit, source, sources, first_seen, updated_at, apply_url,
-      salary_min, salary_max, currency, report_num, score5, decision, confidence, legitimacy, archetype, summary, triage, engine_status FROM jobs WHERE ${where.join(' AND ')} ORDER BY fit_score DESC NULLS LAST, first_seen DESC LIMIT 1000`).all(...args)
+      salary_min, salary_max, currency, report_num, score5, decision, confidence, legitimacy, archetype, summary, triage, engine_status, jd_status, jd_source FROM jobs WHERE ${where.join(' AND ')} ORDER BY fit_score DESC NULLS LAST, first_seen DESC LIMIT 1000`).all(...args)
       .map((j: any) => {
         return { ...decorate(j), warm: warm.get(normCompany(j.company)) ?? 0 };
       });
@@ -528,6 +530,11 @@ const routes: [string, RegExp, Handler][] = [
     if (!ids.length) throw new Error('no jobs selected');
     return startPipeline('evaluate', ids);
   }],
+  ['POST', /^\/api\/backup$/, () => backup('desk')],
+  ['POST', /^\/api\/rescreen$/, () => startPipeline('rescreen', [], 'rescreen')],
+  ['POST', /^\/api\/jobs\/([\w-]+)\/rescreen$/, (_q, _r, m) => startPipeline('rescreen', [m[1]], `rescreen:${m[1]}`)],
+  ['GET', /^\/api\/backups$/, () => listBackups()],
+  ['POST', /^\/api\/export$/, () => exportApplications()],
   ['GET', /^\/api\/limits$/, () => {
     const day = `datetime('now', 'start of day')`;
     const today = db.prepare(`SELECT COUNT(*) n, SUM(status = 'failed') failed, SUM(status = 'running') running, ROUND(SUM(cost_usd), 2) usd FROM runs WHERE started_at >= ${day}`).get() as any;
@@ -565,7 +572,9 @@ const routes: [string, RegExp, Handler][] = [
   ['POST', /^\/api\/run\/(briefing|scout|score|triage|tailor|calendar|fastlane|inbox)$/, (_q, _r, m) => (m[1] === 'scout' ? startPipeline('scout', ['--score'], 'scout') : startPipeline(m[1]))],
   ['POST', /^\/api\/onboarding\/resume$/, async (req) => {
     const body = await readBody(req);
-    if (body.replaceCandidate !== true) throw new Error('Confirm that this resume replaces the current candidate profile and clears its job history.');
+    // An updated resume for the same person keeps the job history; wiping it is a separate, typed decision.
+    const mode = body.mode === 'new-candidate' ? 'new-candidate' : 'update';
+    if (mode === 'new-candidate' && body.confirm !== 'NEW CANDIDATE') throw new Error('Type NEW CANDIDATE to confirm wiping every job, status and note.');
     if (running.has('setup-context')) throw new Error('Resume intake is already running. Wait for it to finish before starting another.');
     const filename = String(body.filename ?? '').toLowerCase();
     const encoded = String(body.data ?? '');
@@ -609,13 +618,15 @@ const routes: [string, RegExp, Handler][] = [
     // Nothing from the previous candidate may keep running into the new workspace.
     stopAll();
     await new Promise((done) => setTimeout(done, 800));
+    backup(mode === 'new-candidate' ? 'before-new-candidate' : 'before-resume-update');
     setCandidateState('intake');
-    resetCandidateWorkspace();
+    if (mode === 'new-candidate') resetCandidateWorkspace();
+    else resetProfile();
     mkdirSync(inbox, { recursive: true });
     writeFileSync(saved, bytes, { mode: 0o600, flag: 'wx' });
     const upload = resumeText ? saved.replace(/\.(docx|pdf)$/, '.txt') : saved;
     if (resumeText) writeFileSync(upload, resumeText, { mode: 0o600, flag: 'wx' });
-    return { ...startPipeline('intake', [upload], 'setup-context'), filename: ext };
+    return { ...startPipeline('intake', mode === 'update' ? [upload, '--update'] : [upload], 'setup-context'), filename: ext, mode };
   }],
   ['GET', /^\/api\/running$/, () => [...running.keys()]],
   ['GET', /^\/api\/candidate$/, () => candidateState()],

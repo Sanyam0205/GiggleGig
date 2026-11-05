@@ -27,4 +27,4 @@ as good as these files. Interview notes also go to `context/experience-library.m
 6. **Write the files.** Keep the user's words for facts; tighten phrasing. Never add facts they didn't state.
 7. Run `node os/cli.ts engine portals` to synchronize the candidate's confirmed search filters and target companies.
 8. **Check completeness** and report: sections still thin, and the 3 highest-leverage things to add.
-9. **Target companies**: leave the list empty unless this candidate supplied targets; offer to run `/company-research build` after preferences are confirmed.
+9. **Target companies**: on an updated resume for the same candidate, keep `context/target-companies.json` as it is. For a new candidate, leave the list empty unless they supplied targets; offer to run `/company-research build` after preferences are confirmed.

@@ -14,16 +14,27 @@ const CANDIDATE_FILES = [
   join(CONTEXT_DIR, 'qa-master.md'), join(CONTEXT_DIR, 'target-companies.json'),
 ];
 
-function archiveCandidate() {
+// A resume update keeps these in place (copied to the archive, not moved): your company list and form answers are not on a resume.
+const KEPT_ON_UPDATE = [join(CONTEXT_DIR, 'target-companies.json'), join(CONTEXT_DIR, 'qa-master.md')];
+
+function archiveCandidate(keep: string[] = []) {
   const dir = join(DATA_DIR, 'previous-candidate', new Date().toISOString().replace(/[:.]/g, '-'));
   for (const file of CANDIDATE_FILES.filter(existsSync)) {
     const to = join(dir, file.slice(file.startsWith(ENGINE_DATA) ? ENGINE_DATA.length + 1 : CONTEXT_DIR.length + 1).replace(/\//g, '__'));
     mkdirSync(dir, { recursive: true });
-    renameSync(file, to);
+    if (keep.includes(file)) copyFileSync(file, to);
+    else renameSync(file, to);
   }
 }
 
-/** Remove prior-candidate job tracking and generated work while retaining app settings and source code. */
+/** Same person, new resume: rebuild the profile, keep every job, status, note, contact and interview. */
+export function resetProfile() {
+  archiveCandidate(KEPT_ON_UPDATE);
+  rmSync(join(ENGINE_DATA, 'inbox'), { recursive: true, force: true });
+  mkdirSync(join(ENGINE_DATA, 'inbox'), { recursive: true });
+}
+
+/** A different candidate: remove all job tracking and generated work, keeping app settings and source code. Back up first. */
 export function resetCandidateWorkspace() {
   db.exec('PRAGMA secure_delete = ON');
   db.exec('BEGIN IMMEDIATE');

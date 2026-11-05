@@ -3,8 +3,7 @@ import { api, type QueueItem } from '../api';
 import { useToast } from '../App';
 import { Stamp } from './Stamp';
 import { Track } from './Track';
-import { consignment, KIND_LABEL, KIND_MINUTES, tracking } from './postal';
-import { getWorld } from '../world';
+import { consignment, KIND_LABEL, tracking } from './postal';
 
 function preview(q: QueueItem) {
   const b = q.body ?? {};
@@ -28,9 +27,9 @@ export function Slip({ q, base }: { q: QueueItem; base: string }) {
       await api.decide(q.id, action);
       if (action === 'approve') {
         setFreshStamp(true);
-        if (isApp && q.body?.applyUrl) toast('Franked. Open the apply page when you are ready.');
-        else if (q.body?.channel === 'email') toast('Franked. Creating the Gmail draft…');
-        else toast('Franked.');
+        if (isApp && q.body?.applyUrl) toast('Approved. Open the apply page when you are ready.');
+        else if (q.body?.channel === 'email') toast('Approved. Creating the Gmail draft…');
+        else toast('Approved.');
       }
       if (action === 'reject') toast('Rejected. It will not be sent.');
       if (action === 'done') toast(isApp ? 'Marked applied.' : 'Marked sent.');
@@ -53,8 +52,7 @@ export function Slip({ q, base }: { q: QueueItem; base: string }) {
       <div className="stub">
         <span className="label">{KIND_LABEL[q.kind] ?? q.kind}</span>
         <span className="mono">{consignment(q)}</span>
-        {q.fit_score != null ? <span className="fit">{q.fit_score}<small>/100 fit</small></span> : <span className="fit none">—</span>}
-        {getWorld() === 'notice' && <span className="minutes">{KIND_MINUTES[q.kind] ?? 5} min</span>}
+        {q.fit_score != null ? <span className="fit">{(q.fit_score / 20).toFixed(1)}<small>of 5</small></span> : <span className="fit none">—</span>}
       </div>
       <div className="body">
         <button className="t" onClick={open}>{isApp ? q.job_title ?? q.title : q.title}</button>
@@ -70,7 +68,7 @@ export function Slip({ q, base }: { q: QueueItem; base: string }) {
         )}
         <Track steps={tracking(q)} />
       </div>
-      {(franked || q.status === 'done') && <Stamp at={q.decided_at} fresh={freshStamp} label={getWorld() === 'notice' ? 'SIGNED' : 'DESK'} />}
+      {(franked || q.status === 'done') && <Stamp at={q.decided_at} fresh={freshStamp} label="APPROVED" />}
       <div className="act">
         {q.status === 'pending' ? (
           <>
@@ -84,7 +82,7 @@ export function Slip({ q, base }: { q: QueueItem; base: string }) {
           </>
         ) : (
           <>
-            <span className="tag violet">Franked</span>
+            <span className="tag violet">Approved</span>
             <div className="row">
               {isApp && q.body?.applyUrl && <a className="btn" href={q.body.applyUrl} target="_blank" rel="noreferrer">Open apply page</a>}
               {isLinkedIn && q.kind !== 'connection' && <button className="btn" onClick={copyAndOpen}>Copy &amp; open profile</button>}

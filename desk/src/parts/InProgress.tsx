@@ -9,11 +9,11 @@ export function InProgress({ jobs }: { jobs: MatchRow[] }) {
   if (!busy.length && !moved.length) return null;
   return (
     <section className="inprogress" aria-label="Being worked on">
-      <h2 className="section">Being worked on<span className="c">{busy.length} running · {moved.length} moved in the last 15 min</span><a className="small" href="#/pipeline/working">Open Pipeline</a></h2>
+      <h2 className="section">Being worked on<span className="c">{busy.length} running · {moved.length} moved in the last 15 min</span><a className="small" href="#/review">Open Review</a></h2>
       {[...busy, ...moved].slice(0, 8).map((j) => {
         const lane = laneOf(j.status);
         return (
-          <a key={j.id} className={`ip-row${busy.includes(j) ? ' busy' : ''}`} href={`#/pipeline/${lane.key}/job/${j.id}`}>
+          <a key={j.id} className={`ip-row${busy.includes(j) ? ' busy' : ''}`} href={`#/today/job/${j.id}`}>
             {busy.includes(j) && <span className="spin inline" aria-hidden="true" />}
             <span className="ip-t"><b>{j.company}</b> · {j.title}</span>
             <span className="ip-lane">{lane.title}</span>

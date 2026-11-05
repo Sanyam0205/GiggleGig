@@ -4,7 +4,7 @@ import { useToast } from '../App';
 
 const REL_TAG: Record<string, string> = { cold: 'ink', requested: 'violet', connected: 'violet', warm: 'green', referrer: 'green' };
 
-export function Contacts() {
+export function Contacts({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast();
   const { data, refresh } = useLive(api.contacts, [], (m) => Boolean(m.queueChanged));
   const [q, setQ] = useState('');
@@ -24,7 +24,7 @@ export function Contacts() {
   return (
     <>
       <header className="head">
-        <h1>Contacts</h1>
+        {!embedded && <h1>Contacts</h1>}
         <span className="meta">{data?.length ?? 0} people · warm paths into the companies you're applying to.</span>
         <span className="sp" />
         <input ref={file} type="file" accept=".csv,text/csv" hidden onChange={(e) => onFile(e.target.files?.[0])} />

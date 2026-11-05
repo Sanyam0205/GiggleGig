@@ -76,7 +76,7 @@ export function schedule(action: string) {
       launchctl('bootout', `gui/${uid}`, path);
       if (existsSync(path)) unlinkSync(path);
     }
-    return 'Removed all Job Search OS launchd jobs.';
+    return 'Removed all GiggleGig launchd jobs.';
   }
   return JOBS.map((j) => ({ job: j.label, installed: existsSync(join(AGENTS, `${j.label}.plist`)), runs: j.args.join(' ') }));
 }

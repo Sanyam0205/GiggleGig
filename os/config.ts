@@ -34,14 +34,15 @@ export interface SearchConfig {
   maxAgeDays: number;
   thresholds: { skip: number; apply: number };
   /** auto: the briefing tailors every shortlisted role ≥ autoTailorMin. manual: you press Tailor on the desk. */
-  automation: { tailor: 'auto' | 'manual'; autoTailorMin: number };
+  /** reviseAfterReview: one automatic revision when the reviewer agents flag problems (default on). */
+  automation: { tailor: 'auto' | 'manual'; autoTailorMin: number; reviseAfterReview?: boolean };
   alerts: { enabled: boolean; minFit: number; server: string };
   fastlane: { enabled: boolean; everyMinutes: number; tier: number; hoursOld: number; queries: number; jsearchCalls: number };
   inbox: { enabled: boolean; lookbackHours: number };
   /** autoEvaluate: false keeps the costly full evaluation for the roles you pick. */
   engine: { enabled: boolean; triageBatch: number; evaluatePerRun: number; evaluateFastlane: number; autoEvaluate?: boolean };
   /** The candidate's own rules. Kept in settings, so a resume upload never loses them; triage and evaluation read them every run. */
-  preferences?: { minAnnualSalary?: number; currency?: string; usdToInr?: number; experience?: string; exclude?: string[]; notes?: string[] };
+  preferences?: { remotePreferred?: boolean; minAnnualSalary?: number; currency?: string; usdToInr?: number; experience?: string; exclude?: string[]; notes?: string[] };
   sources: {
     ats: boolean;
     jobspy: { enabled: boolean; sites: string[]; locations: string[]; country: string; resultsPerQuery: number; hoursOld: number };
@@ -87,7 +88,9 @@ const lpa = (n: number) => `${(n / 1e5).toFixed(n % 1e5 ? 1 : 0)} LPA`;
 export function preferenceRules(cfg: SearchConfig): string {
   const p = cfg.preferences ?? {};
   const rules: string[] = [];
-  if (cfg.remote.only) rules.push(`Remote only, open to someone living in ${cfg.locations[0] ?? 'the candidate\'s country'}. Office, hybrid, or remote restricted to other countries = Hard DQ.`);
+  const home = cfg.locations[0] ?? "the candidate's country";
+  if (cfg.remote.only) rules.push(`Remote only, open to someone living in ${home}. Office, hybrid, or remote restricted to other countries = Hard DQ.`);
+  else if (p.remotePreferred) rules.push(`Remote roles open to someone living in ${home} score highest. Office or hybrid roles in ${home} are fine (no penalty beyond that preference). Office roles abroad, or remote restricted to other countries = Hard DQ.`);
   if (p.minAnnualSalary) rules.push(`Pay floor: ${p.currency ?? 'INR'} ${p.minAnnualSalary.toLocaleString('en-IN')} a year (${lpa(p.minAnnualSalary)}). A posted range whose top is below it = Hard DQ. Unknown pay is neutral, but fresher packages, mass hiring and IT-services roles that usually pay below it score lower; roles that clearly pay well above it score higher.`);
   if (p.experience) rules.push(`Experience: roles asking ${p.experience} years fit best. 3+ years required, Senior, Staff, Lead or Manager = Hard DQ.`);
   if (p.exclude?.length) rules.push(`Hard DQ: ${p.exclude.join(', ')}.`);
